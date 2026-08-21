@@ -1,0 +1,9 @@
+/* ---------- top bar ---------- */
+#topbar{display:flex;align-items:center;gap:10px;padding:8px 12px calc(6px);border-bottom:1px solid var(--line);background:linear-gradient(180deg,#0A1F27,#071820);z-index:5}
+.brand{font-family:var(--disp);font-size:15px;letter-spacing:.06em;color:var(--sodium)}
+.brand span{color:var(--foam);opacity:.85}
+#tbright{margin-left:auto;display:flex;align-items:center;gap:10px}
+#sessionClock{font-family:var(--mono);font-size:11px;color:var(--sodium);opacity:.85;border:1px solid var(--line);border-radius:6px;padding:2px 6px}
+#sessionClock::before{content:'SESSION ';opacity:.6;font-size:9px;letter-spacing:.08em}
+.iconBtn{width:30px;height:30px;border:1px solid var(--line);border-radius:8px;display:grid;place-items:center;font-size:13px;color:var(--sodium);background:rgba(255,180,84,.05)}
+#balance{font-family:var(--mono);font-weight:600;font-size:14px}

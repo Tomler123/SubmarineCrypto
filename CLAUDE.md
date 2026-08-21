@@ -10,11 +10,43 @@ Authoritative documents (keep them in the repo root, keep them current):
 
 - `crush-depth-game-logic-v0.1.md` — the full game logic spec: index math, oxygen edge, cash-out rules, risk caps, degenerate cases. **This spec wins any conflict with code.**
 - `crush-depth-acceptance-criteria-v0.1.md` — testable acceptance criteria for casino/certification readiness. New features must add criteria here before merging.
-- `crush-depth-phase1.html` — the Phase 1 single-file prototype (Canvas 2D). Reference implementation of the client architecture and visual direction.
+- `legacy/crush-depth-phase1.html` — the Phase 1 single-file prototype (Canvas 2D). Reference implementation of the client architecture and visual direction. **Kept verbatim for diffing; do not edit.**
+- `ARCHITECTURE.md` — folder layout, the load-bearing Phase 2 seams, and the module-level side-effect order. Read before adding a module with side effects.
 
 ## Current state
 
-Phase 1 complete: single-file HTML prototype with simulated feed, full round loop, positions, cash-out ascent, liquidation, bot feed, responsible-play UI. Phase 1.5 (current work) folds the approved logic spec into the client and migrates to a real repo.
+Phase 1 complete: single-file HTML prototype with simulated feed, full round loop, positions, cash-out ascent, liquidation, bot feed, responsible-play UI.
+
+Phase 1.5 in progress. **Step 1 (repo scaffold) is done** as a pure structural split of the prototype into ES modules — no behaviour, logic, naming, or formatting was changed. Plain ES modules, no build tool, no package manager. The remaining Phase 1.5 tasks (engine port with tests, oxygen, round timings, auto cash-out, replay source, Monte-Carlo harness, PixiJS port) are unstarted.
+
+### Where things live
+
+```
+index.html              entry point — markup + <script type="module" src="./src/main.js">
+legacy/                 untouched Phase 1 prototype (diff reference)
+styles/                 tokens, topbar, scene, history, console, sheets
+src/
+  main.js               module-map header, tick wiring, boot sequence
+  config/constants.js   CFG — every tunable and magic number
+  util/                 dom ($), math (clamp/lerp/now/wait), random (LCG/gauss/noise/RSEED), format (fmt$/fmtClock)
+  state/store.js        S — mutable game state singleton
+  feed/                 SimulatedIndexSource, InterpBuffer, and the source/buffer singletons
+  core/                 engine (position math + settlement), gateway, round (state machine), bots
+  audio/audio.js        Au synth + pointerdown unlock
+  render/               palette (depth colour ramp), renderer (Canvas 2D — one file, see ARCHITECTURE.md)
+  ui/                   dom-refs, feed, history, overlay, console, sheets, responsible
+  loop/frame.js         60 fps main loop
+```
+
+Run it with any static server from the repo root (`npx serve .`, `python -m http.server 8000`) and open `index.html`. ES modules require HTTP — opening the file directly with `file://` will fail on CORS.
+
+### Structural rules for this tree
+
+- **Nothing outside `src/feed/` may know which `IndexSource` is running.** Import the `source` singleton from `feed/index.js`, never `SimulatedIndexSource` directly.
+- **`InterpBuffer` stays out of `render/`.** Ticks are authoritative; the interpolated value is presentation. Keeping them in separate modules makes invariant 3 structurally visible.
+- **New module with side effects?** Add its import to `main.js` at the position matching the documented order, and update the side-effect table in `ARCHITECTURE.md`.
+- **`engine.js` is not yet DOM-free.** `Engine.settle` still calls `FX`, `Au`, `feedMsg`, `toast` and `checkLossLimit` directly, exactly as the prototype did. Decoupling it is Phase 1.5 task 2 — that is what makes the engine portable to the Phase 2 server.
+- There is deliberately **no `economy/` folder** in Phase 1. It is the intended home for ledger and payout arithmetic when that logic is extracted from `Engine` in Phase 2.
 
 ## Non-negotiable invariants
 
@@ -43,6 +75,13 @@ M_t = 1 + L·d·(I_t/I_e − 1) − θ·τ ;  crush at first tick M_t ≤ 0
 
 ## Target repo structure (migrate toward this; don't half-migrate)
 
+> **Current vs. target.** The tree under "Where things live" is the *current*
+> Phase 1.5 layout: plain ES modules, no build step. The monorepo below remains
+> the destination. The current folders map onto it directly —
+> `src/feed → packages/feed`, `src/core/{engine,round} → packages/engine`,
+> `src/core/gateway → packages/gateway`, `src/render + src/ui → apps/client` —
+> so the migration is a move plus a TypeScript conversion, not a redesign.
+
 ```
 /apps/client          React + PixiJS v8 + Zustand + Framer Motion (mobile-first, portrait)
 /packages/feed        IndexSource contract, SimulatedIndexSource, ReplayIndexSource, InterpBuffer
@@ -59,7 +98,7 @@ M_t = 1 + L·d·(I_t/I_e − 1) − θ·τ ;  crush at first tick M_t ≤ 0
 
 ## Phase 1.5 task list (current)
 
-1. Repo scaffold per structure above (Vite + TypeScript strict).
+1. ~~Repo scaffold~~ — **done** as a plain-ES-module split (see "Where things live"). Vite + TypeScript strict is still the target; the current tree is JS with no build step, so that migration is still ahead.
 2. Port engine math from the prototype into `/packages/engine` with unit tests against the acceptance criteria (AC ids in test names, e.g. `PL-3`).
 3. Add oxygen: `−θτ` in the multiplier, O₂ bar draining on the cash-out button, crush line creeping in the scene.
 4. Round 90 s, entry cutoff T−5 s, intermission 8 s.

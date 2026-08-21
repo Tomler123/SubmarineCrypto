@@ -1,0 +1,16 @@
+:root{
+  --abyssal:#04090E;   /* base water / app background */
+  --benthic:#0D2730;   /* mid-water, panel surfaces   */
+  --sodium:#FFB454;    /* instrument amber — chrome   */
+  --foam:#EAF4F1;      /* primary text                */
+  --bio:#4CF2C0;       /* bioluminal — profit/Surface */
+  --klaxon:#FF4B33;    /* danger, crush, liquidation  */
+  --panel:#081A21;
+  --line:rgba(255,180,84,.16);
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+  --disp:'Archivo Black',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:#000;color:var(--foam);font:14px/1.45 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;overflow:hidden;overscroll-behavior:none}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;user-select:none;-webkit-user-select:none}
+#app{height:100%;max-width:520px;margin:0 auto;display:flex;flex-direction:column;background:var(--abyssal);position:relative;box-shadow:0 0 60px rgba(0,0,0,.9)}

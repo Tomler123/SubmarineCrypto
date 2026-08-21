@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>CRUSH DEPTH — Phase 1 Visual Client</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./styles/tokens.css">
+<link rel="stylesheet" href="./styles/topbar.css">
+<link rel="stylesheet" href="./styles/scene.css">
+<link rel="stylesheet" href="./styles/history.css">
+<link rel="stylesheet" href="./styles/console.css">
+<link rel="stylesheet" href="./styles/sheets.css">
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <div class="brand">CRUSH<span>DEPTH</span></div>
+    <div id="tbright">
+      <div id="sessionClock">00:00</div>
+      <button class="iconBtn" id="soundBtn" aria-label="Sound">&#9215;</button>
+      <button class="iconBtn" id="limitsBtn" aria-label="Play limits">&#9741;</button>
+      <div id="balance">$1,000.00</div>
+    </div>
+  </header>
+
+  <div id="sceneWrap">
+    <canvas id="scene"></canvas>
+    <div id="hud">
+      <div id="idxRead">
+        <div id="idxVal">1000.0</div>
+        <div id="idxSub">DEPTH 1000M · IDX</div>
+        <div id="zoneName">MIDNIGHT</div>
+      </div>
+      <div id="roundTimer">—</div>
+    </div>
+    <div id="feed"></div>
+    <div id="centerOverlay"></div>
+    <div id="toast"></div>
+    <div id="simTag">SIMULATED FEED · PHASE 1</div>
+  </div>
+
+  <div id="historyStrip"></div>
+
+  <section id="console">
+    <div id="betPanel">
+      <div class="crow">
+        <div class="eyebrow">STAKE</div>
+        <button class="stepBtn" id="stakeDown">&minus;</button>
+        <div id="stakeVal">$5.00</div>
+        <button class="stepBtn" id="stakeUp">+</button>
+        <div class="presets">
+          <button class="preset" data-v="100">$1</button>
+          <button class="preset" data-v="500">$5</button>
+          <button class="preset" data-v="2500">$25</button>
+          <button class="preset" data-v="10000">$100</button>
+        </div>
+      </div>
+      <div class="crow">
+        <div class="eyebrow">LEV</div>
+        <div id="levSeg">
+          <button class="levOpt" data-l="2">2&times;</button>
+          <button class="levOpt" data-l="5">5&times;</button>
+          <button class="levOpt sel" data-l="10">10&times;</button>
+          <button class="levOpt" data-l="25">25&times;</button>
+        </div>
+        <button id="mathBtn" aria-label="Payout math">i</button>
+      </div>
+      <div class="actions">
+        <button class="dirBtn" id="btnSurface">SURFACE &#9650;<small>PROFIT IF INDEX RISES</small></button>
+        <button class="dirBtn" id="btnDive">DIVE &#9660;<small>PROFIT IF INDEX FALLS</small></button>
+      </div>
+    </div>
+
+    <div id="armedPanel" class="hidden">
+      <div id="armedTxt">&#9650; $5.00 &times;10 — opens at launch</div>
+      <button id="armedCancel">Cancel</button>
+    </div>
+
+    <div id="cashPanel" class="hidden">
+      <div id="posInfo"><span id="piLeft">&#9650; $5.00 &times;10</span><span id="piRight">entry 1000.0 · crush 900.0</span></div>
+      <button id="btnCash">
+        <span id="cashLabel">CASH OUT</span>
+        <span id="cashAmt">$5.00</span>
+        <span id="cashMult">1.00&times;</span>
+      </button>
+    </div>
+    <div id="consoleMsg"></div>
+  </section>
+
+  <div class="scrim" id="scrim"></div>
+
+  <div class="sheet" id="limitsSheet">
+    <button class="sheetClose" data-close>&times;</button>
+    <h3>PLAY LIMITS &amp; SESSION</h3>
+    <div class="statRow"><span>SESSION TIME</span><span id="lsTime">00:00</span></div>
+    <div class="statRow"><span>TOTAL WAGERED</span><span id="lsWagered">$0.00</span></div>
+    <div class="statRow"><span>NET RESULT</span><span id="lsNet">$0.00</span></div>
+    <div class="limitRow">
+      <input id="lossLimitIn" type="number" inputmode="decimal" min="1" placeholder="Session loss limit ($)">
+      <button class="solidBtn" id="setLimitBtn">Set limit</button>
+    </div>
+    <div id="limitNote"></div>
+    <p style="margin-top:12px;font-size:11px;opacity:.6">When your net loss reaches the limit, betting locks for the rest of the session. A reality check appears every 15 minutes. Play for entertainment — never chase losses.</p>
+  </div>
+
+  <div class="sheet" id="mathSheet">
+    <button class="sheetClose" data-close>&times;</button>
+    <h3>HOW PAYOUTS WORK</h3>
+    <div class="mathTable">
+      payout = stake &times; ( 1 + <b>lev</b> &times; &Delta;% &times; dir )<br>
+      &Delta;% = index change since <b>your</b> entry<br>
+      dir = +1 Surface &middot; &minus;1 Dive
+    </div>
+    <p>Your hull fails (full stake lost) if the index moves <b>1 / leverage</b> against you — e.g. &minus;10% at 10&times;. Your crush line is always drawn on the chart.</p>
+    <p>Cash-out is not instant: the pod takes <b>0.5s</b> to blow ballast and ascend, and settles at the index when the ascent completes. You can be crushed mid-escape. This delay is the same for everyone — it removes any advantage from faster market feeds.</p>
+    <p style="opacity:.6;font-size:11px">Phase 1 uses a simulated index and play-money balance. No house edge is applied in this build.</p>
+  </div>
+
+  <div class="modal" id="rcModal">
+    <div class="modalCard">
+      <h3>REALITY CHECK</h3>
+      <div class="statRow"><span>SESSION TIME</span><span id="rcTime">15:00</span></div>
+      <div class="statRow"><span>WAGERED</span><span id="rcWagered">$0.00</span></div>
+      <div class="statRow"><span>NET RESULT</span><span id="rcNet">$0.00</span></div>
+      <div class="modalBtns">
+        <button class="ghostBtn" id="rcLimits">Set limits</button>
+        <button class="solidBtn" id="rcContinue">Continue</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>

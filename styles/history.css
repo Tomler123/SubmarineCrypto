@@ -1,0 +1,7 @@
+/* ---------- history ---------- */
+#historyStrip{display:flex;gap:5px;padding:6px 10px;overflow-x:auto;background:#061318;border-top:1px solid rgba(234,244,241,.06);scrollbar-width:none;min-height:32px}
+#historyStrip::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto;font-family:var(--mono);font-size:10px;font-weight:600;padding:3px 8px;border-radius:6px;background:rgba(234,244,241,.05);border:1px solid rgba(234,244,241,.08)}
+.chip.pos{color:var(--bio);border-color:rgba(76,242,192,.25)}
+.chip.neg{color:var(--klaxon);border-color:rgba(255,75,51,.25)}
+.chip.flat{color:var(--foam);opacity:.6}
