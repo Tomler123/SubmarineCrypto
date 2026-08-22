@@ -7,6 +7,12 @@ import { defineConfig } from 'vite';
  */
 export default defineConfig({
   // root defaults to this config file's directory (apps/client).
+  //
+  // GitHub Pages serves a project site from /<repo>/, not from the domain root,
+  // so the deploy workflow passes BASE_PATH and every emitted asset URL picks up
+  // that prefix. Local `npm run dev` and `npm run preview` leave it unset and
+  // keep serving from '/'.
+  base: process.env['BASE_PATH'] ?? '/',
   build: {
     outDir: 'dist',
     emptyOutDir: true,
