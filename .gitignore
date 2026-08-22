@@ -1,6 +1,116 @@
+# ---------------------------------------------------------------------------
+# Crush Depth — .gitignore
+# Rule of thumb: anything a fresh `npm install && npm run build` can recreate
+# does not belong in git. Specs, source and decision records always do.
+# ---------------------------------------------------------------------------
+
+# --- Dependencies ---------------------------------------------------------
 node_modules/
+.pnp
+.pnp.*
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+
+# --- Build output ---------------------------------------------------------
+# packages/*/dist (tsc outDir), apps/client/dist (vite build)
 dist/
-coverage/
+build/
+# apps/client emits declarations to dist-types (see apps/client/tsconfig.json)
+dist-types/
 *.tsbuildinfo
+
+# --- Caches ---------------------------------------------------------------
 .vite/
+.cache/
+.temp/
+.tmp/
+.turbo/
+.eslintcache
+.stylelintcache
+.npm/
+.rollup.cache/
+vite.config.*.timestamp-*
+
+# --- Test / coverage output ----------------------------------------------
+coverage/
+*.lcov
+.nyc_output/
+# Vitest / Playwright artifacts
+.vitest/
+html/
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+
+# --- Secrets and local config --------------------------------------------
+# Audit note: no secret may ever be committed. Remote config (θ and friends)
+# lives outside the repo — see CLAUDE.md invariant 7.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets.json
+
+# --- Local tool state -----------------------------------------------------
+.claude/settings.local.json
+.serena/
+.aider*
+
+# --- Logs -----------------------------------------------------------------
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# --- Editors --------------------------------------------------------------
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*.sublime-workspace
+*.sublime-project
+
+# --- OS -------------------------------------------------------------------
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# --- Recorded feed data ---------------------------------------------------
+# ReplayIndexSource (M1.7) replays recorded BTC 100 ms files. Small committed
+# fixtures live under packages/feed/fixtures/ and are kept; bulk captures are
+# not. Drop large captures in data/recordings/.
+data/recordings/
+*.ticks.jsonl
+*.ticks.csv
+
+# --- Simulation output ----------------------------------------------------
+# packages/sim (M1.8) writes Monte-Carlo report artifacts; the calibrated
+# result is recorded in the spec, not as a committed blob.
+packages/sim/out/
+packages/sim/reports/
+
+# --- Misc archives --------------------------------------------------------
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar

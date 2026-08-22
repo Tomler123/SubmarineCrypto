@@ -17,7 +17,13 @@ Authoritative documents (keep them in the repo root, keep them current):
 
 Phase 1 complete: single-file HTML prototype with simulated feed, full round loop, positions, cash-out ascent, liquidation, bot feed, responsible-play UI.
 
-Phase 1.5 in progress. **M1.1 (specs) and M1.2 (toolchain + monorepo layout) are done.** The prototype was split into ES modules as a pure structural change, then moved under `apps/client/` by `git mv` with no content change. The repo is now an npm-workspaces monorepo with Vite, TypeScript strict and Vitest; `npm test`, `npm run typecheck` and `npm run build` all run in CI on push. The remaining Phase 1.5 tasks (M1.3 engine port with tests, M1.4 oxygen and round timings, M1.5 risk caps and auto cash-out, M1.6 replay source, M1.7 Monte-Carlo harness, M1.8 PixiJS port) are unstarted.
+Phase 1.5 in progress. **M1.1 (specs), M1.2 (toolchain + monorepo layout) and M1.3 (pure engine port) are done.** The prototype was split into ES modules as a pure structural change, then moved under `apps/client/` by `git mv` with no content change. The repo is now an npm-workspaces monorepo with Vite, TypeScript strict and Vitest; `npm test`, `npm run typecheck` and `npm run build` all run in CI on push.
+
+M1.3 moved position math and settlement into `packages/engine` as pure TypeScript: no DOM, no timers, no clock reads, no RNG. Every entry point takes a state and returns a new one plus an `EngineEvent[]`, so the five direct `FX`/`Au`/`feedMsg`/`toast`/`checkLossLimit` calls are gone. Money is `Cents` end to end with round-half-away-from-zero applied exactly once at settlement, replacing `Math.round`. `apps/client/src/core/engine.js` is now a thin adapter over the package. 87 tests, 100% coverage on `packages/*`.
+
+M1.3 also settled four spec questions the port surfaced — the crush line is authoritative over `M_t ≤ 0` where floats separate them, rejection precedence is fixed by `EN-8`, `NO_PRICE` is distinct from MF-1 SIGNAL LOST, and a client mirror may never be stricter than the engine. The specs were amended (`CR-1`, `CR-3`, `CR-6`, `EN-8`, `EN-9`, `BO-2`, game logic §5); see `docs/decisions/0002-pure-engine-and-event-seam.md`.
+
+The remaining Phase 1.5 tasks (M1.4 oxygen and round timings, M1.5 risk caps and auto cash-out, M1.6 replay source, M1.7 Monte-Carlo harness, M1.8 PixiJS port) are unstarted. **There is still no house edge** — the `−θτ` term arrives with M1.4.
 
 ### Where things live
 
@@ -47,7 +53,7 @@ Run it with `npm install` then `npm run dev` (Vite, http://localhost:5173). ES m
 - **Nothing outside `src/feed/` may know which `IndexSource` is running.** Import the `source` singleton from `feed/index.js`, never `SimulatedIndexSource` directly.
 - **`InterpBuffer` stays out of `render/`.** Ticks are authoritative; the interpolated value is presentation. Keeping them in separate modules makes invariant 3 structurally visible.
 - **New module with side effects?** Add its import to `main.js` at the position matching the documented order, and update the side-effect table in `ARCHITECTURE.md`.
-- **`engine.js` is not yet DOM-free.** `Engine.settle` still calls `FX`, `Au`, `feedMsg`, `toast` and `checkLossLimit` directly, exactly as the prototype did. Decoupling it is Phase 1.5 task 2 — that is what makes the engine portable to the Phase 2 server.
+- **`engine.js` is a client adapter now, not the engine.** The math lives in `@crush/engine`; `apps/client/src/core/engine.js` holds the engine state, mirrors it into `S`, turns `EngineEvent`s into `FX`/`Au`/`feedMsg`/`toast`/`checkLossLimit` calls, and owns the 900 ms delay before a settled position clears. Keep new game logic in the package, not the adapter.
 - There is deliberately **no `economy/` folder** in Phase 1. It is the intended home for ledger and payout arithmetic when that logic is extracted from `Engine` in Phase 2.
 
 ## Non-negotiable invariants
@@ -101,10 +107,10 @@ M_t = 1 + L·d·(I_t/I_e − 1) − θ·τ ;  crush at first tick M_t ≤ 0
 ## Phase 1.5 task list (current)
 
 1. ~~Repo scaffold~~ — **done**. The ES-module split (see "Where things live") plus M1.2: npm workspaces, Vite, TypeScript strict, Vitest with an 80% coverage gate over `packages/*`, and CI on push. `apps/client` is still JavaScript (`allowJs`, `checkJs` off) because M1.8 replaces `render/` wholesale; **new code should be `.ts`.**
-2. Port engine math from the prototype into `/packages/engine` with unit tests against the acceptance criteria (AC ids in test names, e.g. `PL-3`).
+2. ~~Port engine math into `/packages/engine` with unit tests against the acceptance criteria~~ — **done (M1.3)**. Tests are named by AC id; `packages/engine/test/purity.test.ts` is the durable guard on the no-DOM/no-timer/no-clock/no-RNG rule.
 3. Add oxygen: `−θτ` in the multiplier, O₂ bar draining on the cash-out button, crush line creeping in the scene.
 4. Round 90 s, entry cutoff T−5 s, intermission 8 s.
-5. Auto cash-out (take-profit) + stop-loss, set at entry, triggering the same 500 ms ascent.
+5. Auto cash-out (take-profit) + stop-loss, set at entry, triggering the same 500 ms ascent. Also the re-entry cooldown (`reentryCooldownMs` + `COOLING_OFF`) — see ADR 0002 — and the `CR-6` client-line-vs-engine-line assertion.
 6. Max-win auto-surface at 50×.
 7. `ReplayIndexSource` that replays recorded real BTC 100 ms data files.
 8. Monte-Carlo harness in `/packages/sim`: calibrate θ to RTP 96.5 % across behavior models; output a report artifact.

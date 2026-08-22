@@ -106,13 +106,38 @@ d      = +1 Surface, −1 Dive
 M_t    = 1 + L·d·Δ_t − θ·τ                multiplier (live on the button)
 payout = stake · max(0, M_settle)          settled in integer cents
 
-Crush:      position dies at the first tick where M_t ≤ 0
-            (loss capped at stake — always)
 Crush line: I_crush(τ) = I_e · (1 − d·(1 − θτ)/L)
             → the line creeps toward the price as τ grows. Draw it creeping.
+Crush:      position dies at the first tick where the index has reached or
+            passed the crush line —
+              d = +1 (Surface):  I_t ≤ I_crush(τ)
+              d = −1 (Dive):     I_t ≥ I_crush(τ)
+            (loss capped at stake — always)
+            Equivalently M_t ≤ 0. Where float arithmetic separates the two,
+            THE LINE IS AUTHORITATIVE — see below.
 Max win:    forced auto-surface (normal 500 ms ascent) when M_t ≥ 50.
             Cap payout 50× stake, and a per-position absolute cap ($10k v1).
 ```
+
+**Why the line, not the multiplier (v0.2 amendment).** `M_t ≤ 0` and
+`I_t` vs `I_crush(τ)` are inverse in exact arithmetic and *not* inverse in
+IEEE-754: round-tripping through both lands `M` at ±2.2e-16 at the line, with
+the sign depending on the leverage. Testing the multiplier would therefore crush
+a position sitting exactly on its displayed line at 10× and 25× while sparing it
+at 5× — an arbitrary difference between leverages that no player or auditor can
+be told a straight story about.
+
+The two formulations also answer different questions. `M_t ≤ 0` asks "has this
+position's value reached zero?", an internal quantity nobody can see.
+`I_t` vs the line asks "has the price reached the line drawn on screen?" — the
+thing the player watched creep toward the sub and made decisions against. Only
+the second reconstructs into a defensible answer at dispute time (BO-4), so the
+line is the operative test and the multiplier is its consequence.
+
+**Consequence for implementation:** the value the engine tests against and the
+value the client draws must be *the same computed number for the same tick*.
+Once τ enters the line, a line drawn at τ=n and tested at τ=n−1 reintroduces the
+same class of mismatch at a scale players can see. See `CR-6`.
 
 ### RTP target and calibration
 

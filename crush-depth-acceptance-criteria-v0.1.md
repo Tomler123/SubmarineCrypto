@@ -34,6 +34,8 @@ Conventions: "tick" = one 125 ms server sample. "MUST" = release blocker. All mo
 - **EN-5** One open position per player per round; a second open request while one is open is rejected. Re-entry after settlement in the same round is allowed within the entry window.
 - **EN-6** If the round aborts or ends before an accepted entry executes, the stake is fully refunded and the position never existed in the ledger.
 - **EN-7** Every entry request carries a client-generated idempotency id; replaying the same id never creates a second position or a second debit.
+- **EN-8** Rejection reasons are reported in a fixed precedence: loss-lock → position-open → balance → no-price. The principle is that a **session-terminal condition is never masked by a transient one** — specifically, a loss-locked player (RP-2) MUST NOT be told "insufficient balance", which implies that depositing more would let them continue. Test: hold every condition from a given rank downward simultaneously and assert the higher-ranked code is returned. Every rejection leaves the wallet untouched regardless of rank.
+- **EN-9** A request arriving with no valid entry price is rejected as `NO_PRICE`, distinct from MF-1 SIGNAL LOST: it rejects one request, settles nothing, aborts no round, and is not alarmed as an outage. Player-facing copy MUST NOT present it as a feed failure. `NO_PRICE` rate is a counted metric (BO-2) because a rising rate indicates an entry-window or round-start defect.
 
 ## PL — Multiplier, P&L, Oxygen
 
@@ -46,11 +48,12 @@ Conventions: "tick" = one 125 ms server sample. "MUST" = release blocker. All mo
 
 ## CR — Crush (Liquidation)
 
-- **CR-1** A position is crushed at the **first tick** where `M_t ≤ 0`; evaluation order per tick is: crush check → auto-order triggers → pending ascent settlement.
+- **CR-1** A position is crushed at the **first tick** where the index has reached or passed the crush line — `I_t ≤ I_crush(τ)` for Surface, `I_t ≥ I_crush(τ)` for Dive. This is equivalent to `M_t ≤ 0` and, where float arithmetic separates them, **the line is authoritative** (game logic §5). Test: for every direction × leverage, a tick exactly at the line MUST crush, and the tick one representable step short of it MUST NOT — the outcome may not vary by leverage. Evaluation order per tick is: crush check → auto-order triggers → pending ascent settlement.
 - **CR-2** Crush settles at payout 0; the ledger records the crush tick id and `I_t`.
-- **CR-3** The client-displayed crush line equals `I_e·(1 − d·(1 − θτ)/L)` and creeps with τ; a snapshot test compares client line vs engine value within display precision.
+- **CR-3** The client-displayed crush line equals `I_e·(1 − d·(1 − θτ)/L)` and creeps with τ. Because CR-1 makes the line the operative test, the displayed line and the value the engine crushes against MUST be the same computed number, not merely equal within display precision; the client renders a rounded copy of the engine's value and never recomputes it independently.
 - **CR-4** Crush during ascent is possible and takes precedence over ascent settlement on the same tick.
 - **CR-5** A gap tick that jumps far beyond the crush line still settles at exactly 0 (never negative): the clamp (FI-3) bounds the gap, and payout floor guarantees it regardless.
+- **CR-6** τ-alignment: the crush line tested at tick *n* uses the same τ as the line displayed at tick *n*. A line drawn at τ=n and tested at τ=n−1 (or vice versa) is a release blocker — it reintroduces the CR-1 mismatch at a magnitude players can see. Test: across a full round, assert displayed-line(n) === engine-line(n) for every tick with a position open.
 
 ## CO — Cash-Out (The Blow)
 
@@ -127,7 +130,7 @@ Conventions: "tick" = one 125 ms server sample. "MUST" = release blocker. All mo
 ## BO — Back Office & Audit (operator acceptance)
 
 - **BO-1** Round recall: any round reconstructable (price series, every position, every event) from the back office by round id or player id.
-- **BO-2** Live dashboards: actual RTP (rolling 24 h / 30 d) vs target, exposure per direction, feed health, abort counts. RTP deviation alarm at ±1.5 % over 24 h at volume.
+- **BO-2** Live dashboards: actual RTP (rolling 24 h / 30 d) vs target, exposure per direction, feed health, abort counts, and rejection counts broken out by EN-8 code (`NO_PRICE` in particular — see EN-9). RTP deviation alarm at ±1.5 % over 24 h at volume.
 - **BO-3** Immutable audit log of every config change (θ, caps, limits) with actor identity.
 - **BO-4** Player-level statement export (bets, results, timestamps) for dispute resolution.
 

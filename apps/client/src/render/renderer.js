@@ -427,7 +427,9 @@ export function draw(t, dt){
     if (rnd()<dt*40) FX.bubbles.push({x:FX.pod.x+(rnd()-0.5)*8,y:FX.pod.y+8,
       vx:(rnd()-0.5)*20,vy:-(70+rnd()*90),r:0.8+rnd()*1.8,life:1});
     if (S.pos && S.pos.state==='ascending'){
-      const pnlI=Math.max(-S.pos.stake, Math.round(S.pos.stake*S.pos.lev*S.pos.dir*(v/S.pos.entry-1)));
+      // M1.3: through the engine, not a second copy of the P&L formula, so the
+      // ascent readout cannot drift from the settled figure (UI-2).
+      const pnlI=Engine.pnl(v);
       ctx.font='600 13px "IBM Plex Mono",monospace';
       ctx.fillStyle=pnlI>=0?'#4CF2C0':'#FF4B33';
       ctx.fillText(fmt$(S.pos.stake+pnlI), FX.pod.x+14, FX.pod.y-8);

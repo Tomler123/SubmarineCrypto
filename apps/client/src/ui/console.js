@@ -25,7 +25,13 @@ document.querySelectorAll('.levOpt').forEach(b=>b.addEventListener('click',()=>{
 export function flashMsg(m){ el.msg.textContent=m;
   clearTimeout(flashMsg._t); flashMsg._t=setTimeout(()=>el.msg.textContent='',2200); }
 export async function tryOpen(dir){
-  if (S.pos) return;
+  // M1.3: a *live* position blocks re-entry, not a settled one still on screen.
+  // S.pos lingers ~900ms after settlement so the wreck can be drawn; guarding on
+  // its mere existence made the client enforce a rule the engine does not have
+  // (EN-5 permits re-entry once a position settles). An optimistic mirror must
+  // never be stricter than the authority, or Phase 2 reconciliation has nothing
+  // to reconcile to. A deliberate re-entry cooldown is M1.5, as an engine rule.
+  if (S.pos && S.pos.state !== 'done') return;
   if (S.lossLocked){ flashMsg('LOSS LIMIT REACHED — BETTING LOCKED'); return; }
   if (S.balance < S.stake){ flashMsg('INSUFFICIENT BALANCE'); return; }
   if (S.phase==='running'){
@@ -54,7 +60,9 @@ export function syncConsole(v){
   el.btnS.disabled=el.btnD.disabled=!canBet;
   if (hasPos){
     const p=S.pos;
-    const pnlI=Math.max(-p.stake, Math.round(p.stake*p.lev*p.dir*(v/p.entry-1)));
+    // M1.3: through the engine, not a second copy of the P&L formula, so the
+    // live payout cannot drift from the settled figure (UI-2).
+    const pnlI=Engine.pnl(v);
     const pay=p.stake+pnlI;
     el.cashAmt.textContent=fmt$(pay);
     el.cashMult.textContent=(pay/p.stake).toFixed(2)+'\u00D7';

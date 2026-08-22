@@ -14,9 +14,8 @@ export default defineConfig({
       include: ['packages/*/src/**/*.ts'],
       // Placeholder barrels carrying only a package-name constant. Each is
       // removed from this list by the milestone that fills the package in:
-      // engine M1.3, feed M1.6, gateway M2.2, sim M1.7.
+      // engine M1.3 (done), feed M1.6, gateway M2.2, sim M1.7.
       exclude: [
-        'packages/engine/src/index.ts',
         'packages/feed/src/index.ts',
         'packages/gateway/src/index.ts',
         'packages/sim/src/index.ts',

@@ -70,7 +70,7 @@ them.
 | Package | Populated by | Holds |
 |---|---|---|
 | `@crush/ledger` | **live now** | branded `Cents`, round-half-away-from-zero, arithmetic guards |
-| `@crush/engine` | M1.3 → M1.5 | position math, settlement, oxygen, crush, risk caps |
+| `@crush/engine` | **live at M1.3** → M1.5 | position math, settlement, crush; oxygen and risk caps still to come |
 | `@crush/feed` | M1.6 | `IndexSource` contract, simulated / replay / ws sources, `InterpBuffer` |
 | `@crush/gateway` | M2.2 | request/ack seam, optimistic mirror |
 | `@crush/sim` | M1.7 | Monte-Carlo RTP harness, behaviour models |
@@ -79,8 +79,10 @@ TypeScript project references declare the dependency graph, so `tsc --build`
 typechecks in dependency order and `packages/engine` has no path by which it
 could import from `apps/client`. `packages/engine/test/purity.test.ts` is the
 durable guard on that rule: it fails on any `render/` `ui/` `audio/` import, any
-`document`/`window` reference, and any `setTimeout`/`setInterval` — including the
-`setTimeout` currently inside `Engine.settle` that M1.3 must remove.
+`document`/`window` reference, any timer, any clock read (`Date.now`,
+`performance.*`, `new Date`) and any `Math.random`. M1.3 removed the deferred
+callback that used to sit inside `Engine.settle`, so the guard now passes on real
+engine code rather than describing future work.
 
 ---
 
@@ -117,10 +119,19 @@ The engine (position math, liquidation, settlement) and the round state machine
 are the code that moves to the Phase 2 server. They are separated from all
 rendering and DOM code so that migration is a move, not a rewrite.
 
-> **Note on `engine.js` purity:** it is *not* yet DOM-free — `Engine.settle`
-> still calls `FX`, `Au`, `feedMsg`, `toast` and `checkLossLimit` directly, as
-> it did in the prototype. Decoupling that (events or a callback seam) is
-> Phase 1.5 work item 2, not part of this structural split.
+> **Note on `engine.js` purity — resolved at M1.3.** The position math and
+> settlement now live in `@crush/engine`, which is pure: every entry point takes
+> a state and returns a new one plus an `EngineEvent[]`. What remains in
+> `apps/client/src/core/engine.js` is an *adapter*: it holds the engine state,
+> mirrors it into `S` so the renderer and console read it unchanged, translates
+> events into the `FX` / `Au` / `feedMsg` / `toast` / `checkLossLimit` calls the
+> prototype made inline, and owns the 900 ms delay before a settled position
+> leaves the screen. The `Engine.*` signatures did not change, so `gateway.js`,
+> `round.js` and `frame.js` were untouched.
+>
+> `renderer.js` and `console.js` each carried a second inline copy of the P&L
+> formula for their live readouts; both now call `Engine.pnl`, so a displayed
+> figure cannot drift from the settled one (UI-2) when M1.4 adds `−θτ`.
 
 ### `economy/` — intentionally absent
 
@@ -230,5 +241,8 @@ never at module-evaluation time** — the imported bindings are only touched
 inside function bodies and event-listener callbacks. This was verified
 mechanically during the split.
 
-Removing these cycles means decoupling `Engine.settle` from the renderer, audio
-and UI — Phase 1.5 work, tracked separately.
+M1.3 removed the arithmetic from that tangle but not the cycles themselves: the
+adapter in `core/engine.js` still imports the renderer, audio and UI in order to
+*render* engine events. The cycles are therefore unchanged in shape and remain
+safe for the same reason. They disappear when the client adopts a subscriber
+list instead of direct calls — natural to do alongside the M1.8 Pixi port.
