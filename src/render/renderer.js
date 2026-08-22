@@ -27,7 +27,7 @@ export const FX={
   debris:[], rings:[], snow:[], bubbles:[], creatures:[],
   pod:null, sweep:0, pingR:-1, pingT:0, creatT:8000,
   roundReset(){ this.debris.length=0; this.rings.length=0; this.pod=null;
-    lastV=CFG.IDX0; },
+    lastV=CFG.IDX0; breached=false; momentum=0; momSlow=CFG.IDX0; },
   startBlow(){
     const p=S.pos; if(!p) return;
     this.pod={x:SUBX(), y:lastSubY, state:'rising'};
@@ -57,7 +57,54 @@ export const FX={
 const SUBX=()=> W*0.38;
 let lastSubY=0, lastSubDepth=CFG.BASE_DEPTH, lastV=CFG.IDX0, prevCam=CFG.BASE_DEPTH;
 
-const depthOf = v => clamp(CFG.BASE_DEPTH-(v-CFG.IDX0)*CFG.M_PER_PT, -36, 4200);
+/* --- momentum lighting -------------------------------------------------
+   A smoothed ~20s momentum of the index, in log units, used only to blend
+   water brightness and god-ray intensity. Rising water reads bright at any
+   depth; falling water dims like closing pressure. Purely cosmetic: it never
+   feeds back into depthOf, the trail, or anything the engine reads. */
+const MOM_TAU_MS = 20000;              // ~20s smoothing window
+const MOM_FULL   = 0.045;              // log-return that saturates the effect
+let momSlow = CFG.IDX0;                // slow EMA of the index
+let momentum = 0;                      // smoothed, normalised to [-1, 1]
+function updateMomentum(v, dt){
+  const a = 1-Math.pow(0.5, (dt*1000)/MOM_TAU_MS);   // frame-rate independent
+  momSlow = lerp(momSlow, v, a);
+  const raw = Math.log(Math.max(v,1e-9)/Math.max(momSlow,1e-9))/MOM_FULL;
+  momentum = lerp(momentum, clamp(raw,-1,1), 1-Math.pow(0.06, dt));
+}
+export const getMomentum = ()=> momentum;
+
+/* --- breach ------------------------------------------------------------
+   If the index rallies far enough that depth reaches the surface, the sub
+   rides the waves instead of being pinned to a boundary. Cosmetic only:
+   the index, entry/crush lines and payouts are index-based and carry on
+   exactly as they would at any other depth. */
+let breached=false, breachT=-1e9;
+export const isBreached = ()=> breached;
+
+/* Blend a zone colour toward a warm lit tint (rising) or a cold dark one
+   (falling). Absolute depth still sets the base colour; momentum only shifts
+   it, so the zone identity survives the lighting. */
+const LIT_WARM=[92,150,168], LIT_COLD=[0,3,6];
+function litCol(c){
+  const m = momentum;
+  if (Math.abs(m) < 0.004) return c;
+  const tgt = m>0 ? LIT_WARM : LIT_COLD;
+  const f = Math.abs(m)*(m>0 ? 0.34 : 0.42);
+  return [lerp(c[0],tgt[0],f), lerp(c[1],tgt[1],f), lerp(c[2],tgt[2],f)];
+}
+
+/* Logarithmic depth mapping (presentation only — no money path reads this).
+   depth_m = BASE_DEPTH - ln(I/I0) * DEPTH_K.
+   Surface (0m) requires I ~ +47%, about 4 sigma for a 90s round: a rare
+   spectacle rather than the routine pin the old linear band produced. The
+   clamp below is a numeric safety net, NOT a playable boundary. */
+const depthOf = v => clamp(
+  CFG.BASE_DEPTH - Math.log(Math.max(v, 1e-9)/CFG.IDX0)*CFG.DEPTH_K,
+  CFG.DEPTH_MIN, CFG.DEPTH_MAX);
+/* metres of depth per index point at I0 — the local slope of depthOf, used to
+   keep camera zoom limits expressed in the same units as the mapping. */
+const M_PER_PT_AT_I0 = CFG.DEPTH_K/CFG.IDX0;
 const yOf = d => H*0.46 + (d-view.cam)*view.pxm;
 const xOf = (t,rt) => SUBX() - (rt-t)*(CFG.SCROLL/1000);
 
@@ -96,20 +143,42 @@ export function draw(t, dt){
   const idle = !active && !launching;
   const bob = idle? Math.sin(t*0.0012)*10 : 0;
   const subDepth = depthOf(v)+bob;
+  updateMomentum(v, dt);
 
-  /* camera */
+  /* breach detection — spray burst on the crossing, not every frame above 0 */
+  const nowBreached = subDepth<=0 && active;
+  if (nowBreached && !breached){
+    breachT=t;
+    for(let i=0;i<34;i++) FX.bubbles.push({
+      x:SUBX()+(rnd()-0.5)*46, y:yOf(0),
+      vx:(rnd()-0.5)*140, vy:-(120+rnd()*200),
+      r:0.8+rnd()*2.4, life:0.9+rnd()*0.5});
+    view.flash=Math.max(view.flash,0.16);
+  }
+  breached=nowBreached;
+
+  /* camera — limits re-derived for the logarithmic metres-per-percent scale.
+     One percent of index is now ~DEPTH_K/100 = 52m (it was 120m under the old
+     linear 12 m/pt), so both the quiet-round floor span and the pxm band are
+     scaled by the same ratio to keep the trail filling ~60% of scene height. */
   view.cam = lerp(view.cam, subDepth, 1-Math.pow(0.0025,dt));
-  let span=220;
+  const MIN_SPAN = M_PER_PT_AT_I0*20;            // ~104m: a quiet ~2% round
+  let span=MIN_SPAN;
   if (trail.length>4){
     let mn=1e9,mx=-1e9;
     for (const p of trail){ const d=depthOf(p.v); if(d<mn)mn=d; if(d>mx)mx=d; }
-    span=Math.max(mx-mn+140,220);
+    span=Math.max(mx-mn+MIN_SPAN*0.64, MIN_SPAN);
   }
-  const tgtPx = clamp(H*0.62/span, 0.14, 1.15);
+  const tgtPx = clamp(H*0.62/span, 0.08, 2.4);
   view.pxm = lerp(view.pxm, tgtPx, 1-Math.pow(0.02,dt));
 
   const sx = launching ? lerp(-60, SUBX(), Math.min(1,(t-S.phaseT)/CFG.LAUNCH_MS)) : SUBX();
-  const sy = yOf(subDepth);
+  /* While breached the hull rides the wave line — the surface chop, not the
+     raw mapping, places it. lastSubDepth keeps the true (negative) value so
+     the HUD readout stays honest. */
+  const waveY = ()=> yOf(0)+Math.sin(SUBX()*0.05+t*0.004)*2.4
+                          +Math.sin(SUBX()*0.013-t*0.0022)*3.6;
+  const sy = breached ? waveY()-6 : yOf(subDepth);
   lastSubY=sy; lastSubDepth=subDepth;
 
   /* tilt & velocity from recent trail slope */
@@ -138,10 +207,10 @@ export function draw(t, dt){
   ctx.clearRect(0,0,W,H);
   ctx.save(); ctx.translate(shx,shy);
 
-  /* --- water gradient by depth zones --- */
+  /* --- water gradient by depth zones, lit by momentum --- */
   const dTop=view.cam+(0-H*0.46)/view.pxm, dBot=view.cam+(H-H*0.46)/view.pxm;
   const g=ctx.createLinearGradient(0,0,0,H);
-  for(let i=0;i<=5;i++) g.addColorStop(i/5, rgb(colAt(lerp(dTop,dBot,i/5))));
+  for(let i=0;i<=5;i++) g.addColorStop(i/5, rgb(litCol(colAt(lerp(dTop,dBot,i/5)))));
   ctx.fillStyle=g; ctx.fillRect(-20,-20,W+40,H+40);
 
   /* surface & sky */
@@ -160,8 +229,10 @@ export function draw(t, dt){
     ctx.stroke();
   }
 
-  /* god rays in the sunlit band */
-  const sunF=clamp(1-view.cam/420,0,1);
+  /* god rays in the sunlit band — momentum both brightens them and lets them
+     carry deeper, so a rally feels lit even well down the column. */
+  const rayReach = 900 + Math.max(momentum,0)*1500;
+  const sunF=clamp(1-view.cam/rayReach,0,1)*(1+momentum*0.85);
   if (sunF>0.02 && TIER<2){
     ctx.save(); ctx.globalCompositeOperation='lighter';
     for(let i=0;i<5;i++){
@@ -169,7 +240,7 @@ export function draw(t, dt){
       const sw=Math.sin(t*0.00013+i)*0.16;
       ctx.save(); ctx.translate(bx,Math.max(ySurf,-10)); ctx.rotate(0.16+sw);
       const rg=ctx.createLinearGradient(0,0,0,H*0.9);
-      rg.addColorStop(0,`rgba(255,236,190,${0.10*sunF})`);
+      rg.addColorStop(0,`rgba(255,236,190,${clamp(0.10*sunF,0,0.26)})`);
       rg.addColorStop(1,'rgba(255,236,190,0)');
       ctx.fillStyle=rg; ctx.fillRect(-26,0,52,H*0.9); ctx.restore();
     }
@@ -266,6 +337,10 @@ export function draw(t, dt){
     ctx.lineWidth=1;
     ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,6.283); ctx.stroke();
   }
+  if (breached && rnd()<dt*30){ // surface spray while riding the waves
+    FX.bubbles.push({x:sx+(rnd()-0.5)*40, y:sy+4,
+      vx:(rnd()-0.5)*90, vy:-(70+rnd()*130), r:0.7+rnd()*2, life:0.7});
+  }
   if (active && rnd()<dt*22){ // prop wash
     FX.bubbles.push({x:sx-30,y:sy+(rnd()-0.5)*8,vx:-20-rnd()*20,
       vy:-(8+rnd()*25),r:0.7+rnd()*1.6,life:0.9});
@@ -303,7 +378,7 @@ export function draw(t, dt){
     ctx.save(); ctx.globalCompositeOperation='lighter';
     const nx=sx+Math.cos(tilt)*32, ny=sy+Math.sin(tilt)*32;
     const rg=ctx.createRadialGradient(nx,ny,4,nx,ny,210);
-    rg.addColorStop(0,'rgba(255,214,150,.17)');
+    rg.addColorStop(0,`rgba(255,214,150,${clamp(0.17*(1+momentum*0.5),0.09,0.28)})`);
     rg.addColorStop(1,'rgba(255,214,150,0)');
     ctx.fillStyle=rg;
     ctx.beginPath(); ctx.moveTo(nx,ny);
@@ -334,6 +409,12 @@ export function draw(t, dt){
   /* the submarine — shared index vessel */
   if (!(S.phase==='waiting'&&(t-S.phaseT)<400)){
     drawSub(sx,sy,tilt,tension,t,active);
+  }
+  if (breached && t-breachT<1600){
+    const a=clamp(1-(t-breachT)/1600,0,1);
+    ctx.font='600 12px "IBM Plex Mono",monospace';
+    ctx.fillStyle=`rgba(234,244,241,${a})`;
+    ctx.fillText('BREACH', sx-20, sy-28);
   }
 
   /* your pod — clamped, rising, or gone */
@@ -381,7 +462,8 @@ export function draw(t, dt){
 
   /* vignette + pressure warning */
   const vg=ctx.createRadialGradient(W/2,H*0.45,H*0.35,W/2,H*0.5,H*0.85);
-  vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,2,4,.42)');
+  vg.addColorStop(0,'rgba(0,0,0,0)');
+  vg.addColorStop(1,`rgba(0,2,4,${clamp(0.42-momentum*0.16,0.24,0.62)})`);
   ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
   if (tension>0.08){
     const pulse=tension*0.26*(0.6+0.4*Math.sin(t*0.012));

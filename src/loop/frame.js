@@ -25,8 +25,11 @@ export function frame(){
   el.idxVal.textContent=v.toFixed(1);
   el.idxVal.style.color = S.pos&&S.pos.state!=='done'
     ? (Engine.pnl(v)>=0?'#4CF2C0':'#FF4B33') : '#EAF4F1';
-  el.idxSub.textContent='DEPTH '+Math.max(0,Math.round(getLastSubDepth()))+'M \u00B7 IDX';
-  el.zone.textContent=zoneName(getLastSubDepth());
+  const subD=getLastSubDepth();
+  el.idxSub.textContent = subD<=0
+    ? 'SURFACED \u00B7 IDX'
+    : 'DEPTH '+Math.round(subD)+'M \u00B7 IDX';
+  el.zone.textContent = subD<=0 ? 'BREACH' : zoneName(subD);
   el.bal.textContent=fmt$(S.balance);
 
   if (S.phase==='running') el.rTimer.textContent=Math.max(0,(S.roundEnd-t)/1000).toFixed(0)+'s';

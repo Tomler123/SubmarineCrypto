@@ -11,8 +11,10 @@ export const CFG = {
   IDX0: 1000,
   TICK_VOL: 0.0042,       // volatility-normalised per-tick target
   SCROLL: 26,             // px/s horizontal travel
-  M_PER_PT: 12,           // metres of depth per index point
-  BASE_DEPTH: 1000,       // metres at IDX0
+  BASE_DEPTH: 2000,       // metres at IDX0 (presentation only)
+  DEPTH_K: 5200,          // metres per natural log unit of I/I0 (presentation only)
+  DEPTH_MIN: -500,        // numeric safety clamp only — not a playable boundary
+  DEPTH_MAX: 30000,
   LEV: [2,5,10,25],       // ASSUMPTION: discrete leverage set
   STAKES: [100,200,500,1000,2500,5000,10000,25000],
   START_BAL: 100000       // $1,000.00 play money
