@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    /* Type-check only: the tests are run from source by Vitest, never emitted.
+       `composite` off because this project is a leaf that nothing references. */
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "noEmit": true,
+    "types": ["node"],
+    "paths": {
+      "@crush/engine": ["./packages/engine/src/index.ts"],
+      "@crush/ledger": ["./packages/ledger/src/index.ts"]
+    }
+  },
+  "include": ["packages/*/test/**/*.ts"]
+}

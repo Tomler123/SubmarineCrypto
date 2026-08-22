@@ -20,6 +20,9 @@ export function setPhase(p){
   const t=now();
   if (p==='launching'){
     S.roundNo++; setRSEED(S.roundNo*977.13 + 7);
+    // PL-2: tunables are re-read here and only here. A theta change lands at a
+    // round boundary, never mid-round, and is logged with the round it starts.
+    Engine.beginRound();
     trail.length=0; buffer.reset(); FX.roundReset();
     S.roundMax=S.roundMin=CFG.IDX0;
     overlayHTML('');

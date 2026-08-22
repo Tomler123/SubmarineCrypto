@@ -34,5 +34,26 @@
 #cashMult{font-family:var(--mono);font-size:12px;opacity:.75}
 #btnCash.ascending{background:linear-gradient(180deg,#2E5D6C,#1B3B47);color:#CFECF4;animation:blowPulse .5s linear infinite;box-shadow:0 0 30px rgba(76,242,192,.25)}
 #btnCash.neg #cashAmt{color:#5A1400}
+
+/* ---- O2 gauge (UI-4) ------------------------------------------------
+   Sits flush along the bottom edge of the cash-out button: the drain is
+   attached to the moment it applies pressure to, not parked in a corner.
+   `position:relative` on the button is required for it. */
+#btnCash{position:relative;overflow:hidden}
+#o2Bar{position:absolute;left:0;right:0;bottom:0;height:5px;background:rgba(36,19,0,.28)}
+#o2Fill{display:block;height:100%;width:100%;background:linear-gradient(90deg,#2FE0B4,#8CF7DA);
+  /* Eased rather than instant: oxygen updates on the 8 Hz tick, and an
+     unsmoothed 8 Hz step reads as a stutter. Presentation only — the number
+     underneath is the engine's, sampled on ticks. */
+  transition:width .18s linear}
+#btnCash.lowO2 #o2Fill{background:linear-gradient(90deg,#FF7A2F,#FFC062)}
+#btnCash.ascending #o2Fill{background:linear-gradient(90deg,#4CF2C0,#B8FFEC)}
+@media (prefers-reduced-motion:reduce){#o2Fill{transition:none}}
+
+/* ---- entry cutoff (EN-1) ---- */
+#hatchMsg{margin-top:8px;min-height:13px;text-align:center;font-family:var(--mono);
+  font-size:11px;letter-spacing:.16em;color:#FF8A3D}
+#hatchMsg:empty{margin-top:0}
+
 @keyframes blowPulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.35)}}
 .hidden{display:none!important}

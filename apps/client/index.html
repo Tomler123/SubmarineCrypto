@@ -71,6 +71,7 @@
         <button class="dirBtn" id="btnSurface">SURFACE &#9650;<small>PROFIT IF INDEX RISES</small></button>
         <button class="dirBtn" id="btnDive">DIVE &#9660;<small>PROFIT IF INDEX FALLS</small></button>
       </div>
+      <div id="hatchMsg" role="status" aria-live="polite"></div>
     </div>
 
     <div id="armedPanel" class="hidden">
@@ -84,6 +85,10 @@
         <span id="cashLabel">CASH OUT</span>
         <span id="cashAmt">$5.00</span>
         <span id="cashMult">1.00&times;</span>
+        <!-- O2 gauge (UI-4): oxygen drains across the button while a position
+             is open. Not decoration for a fee — the drain IS the house edge,
+             shown continuously, per game logic section 5. -->
+        <span id="o2Bar" aria-hidden="true"><span id="o2Fill"></span></span>
       </button>
     </div>
     <div id="consoleMsg"></div>

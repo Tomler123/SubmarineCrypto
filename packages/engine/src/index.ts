@@ -8,9 +8,16 @@
  * caller-scheduled `clearSettled()`, and the money path moved to integer
  * `Cents` with round-half-away-from-zero applied exactly once at settlement.
  *
- * Still to come: oxygen and the `−θτ` term plus round timings (M1.4), risk caps
- * and auto-orders (M1.5). The CR-1 tick order in `onTick` already has the
- * auto-order slot, so M1.5 fills it rather than rewriting the loop.
+ * M1.4 added oxygen: `M_t` carries the `−θ·τ` term (PL-1), the crush line creeps
+ * with τ (CR-3), and τ is derived from the position's authoritative tick count
+ * rather than any clock — so a replayed round reproduces its edge exactly. θ is
+ * read from `EngineConfig` and snapshotted onto each position at entry, which is
+ * how PL-2's "next round boundary only" rule is enforced rather than merely
+ * documented.
+ *
+ * Still to come: risk caps and auto-orders (M1.5). The CR-1 tick order in
+ * `onTick` already has the auto-order slot, so M1.5 fills it rather than
+ * rewriting the loop.
  *
  * Structural rule: this package must remain importable under plain Node with
  * no DOM shim. Adding a dependency on anything in apps/client breaks the
@@ -54,8 +61,10 @@ export {
   isCrushed,
   livePnl,
   multiplier,
+  oxygenFraction,
   payoutFor,
   pnlFor,
   positionCrushIndex,
   positionMultiplier,
+  tauOf,
 } from './position.js';

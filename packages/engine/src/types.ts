@@ -56,6 +56,27 @@ export interface Position {
   /** Timestamp of the entry-execution tick. */
   readonly openedT: number;
   /**
+   * Authoritative ticks elapsed since the entry-execution tick. The entry tick
+   * itself is tick 0, so `M` is exactly 1 there (PL-1).
+   *
+   * τ is derived from this count — `ticksElapsed × tickSeconds` — and never
+   * from a clock (M1.4 exit criterion, PL-1). A replayed round therefore
+   * reproduces oxygen exactly regardless of how fast the ticks arrive, and a
+   * jitter gap that FI-5/§8 treats as one tick costs one tick of oxygen, not a
+   * wall-clock interval's worth.
+   */
+  readonly ticksElapsed: number;
+  /**
+   * θ in force for this position, snapshotted at the entry tick (PL-2).
+   *
+   * Frozen per position rather than read live, because PL-2 forbids a config
+   * change taking effect mid-round: a position opened under the old θ must
+   * settle under the old θ even if the operator changes it between rounds while
+   * this one is still running. LG-4 also requires "θ in force" to be retained
+   * with the settlement record, and this is the value that gets retained.
+   */
+  readonly theta: number;
+  /**
    * Earliest settlement time for an ascent: `t_r + ASCENT_MS` (CO-1).
    * Zero while the position is `open`.
    */
@@ -85,6 +106,10 @@ export interface Settlement {
   readonly lev: Leverage;
   /** `I_e` — the entry-execution index (EN-2). */
   readonly entry: number;
+  /** θ in force for this position (LG-4). */
+  readonly theta: number;
+  /** τ at the settlement tick, in seconds — `ticksElapsed × tickSeconds`. */
+  readonly tau: number;
   /** The settlement tick — the tick the money derives from. */
   readonly tick: Tick;
   /** `M_settle`, unclamped, for display and audit (LG-4). */
@@ -112,10 +137,35 @@ export interface EngineState {
   readonly lossLocked: boolean;
 }
 
-/** Tunables the engine reads. Frozen per round by the caller (PL-2 prepares M1.4). */
+/**
+ * Tunables the engine reads.
+ *
+ * PL-2 makes this a *round-boundary* object: the caller freezes one config for
+ * the duration of a round and never swaps it mid-round. The engine enforces the
+ * half of that it can — θ is snapshotted onto each position at entry
+ * (`Position.theta`), so even a caller that violated the rule could not change
+ * a live position's edge.
+ */
 export interface EngineConfig {
   /** The Blow: 500 ms, audit-locked (parameter sheet, FA-2). */
   readonly ascentMs: number;
+  /**
+   * θ — oxygen decay per second, as a fraction (0.0025 = 0.25 %/s).
+   *
+   * The one business dial (game logic §5); every other constant is
+   * audit-locked. Read from config, never a literal in the math (M1.4 exit
+   * criterion), because M1.7 calibrates it against an RTP target and Phase 2
+   * serves it as remote config.
+   */
+  readonly thetaPerSecond: number;
+  /**
+   * Seconds of oxygen one authoritative tick costs: 0.125 s at the locked 8 Hz
+   * tick rate. τ = `ticksElapsed × tickSeconds` (PL-1).
+   *
+   * Config rather than a literal so `packages/sim` can run a coarser grid, but
+   * audit-locked in production: it is the tick rate, not a tunable.
+   */
+  readonly tickSeconds: number;
 }
 
 /** A request to open a position, as it arrives from the `Gateway` (invariant 5). */
@@ -125,6 +175,21 @@ export interface OpenRequest {
   readonly lev: Leverage;
   /** Client-generated idempotency id (EN-7); also becomes the position id. */
   readonly id: string;
+  /**
+   * Whether the round's entry window is open at server receipt (EN-1): `running`
+   * and not yet past T−5 s.
+   *
+   * Passed in rather than computed, because the window is a fact about the round
+   * clock and the engine deliberately owns no clock (MF-5, and the M1.4 exit
+   * criterion that τ never comes from `now()`). The round machine — the client's
+   * today, the round server's at M2.2 — evaluates it against the authority's
+   * clock and hands the engine the answer; the engine owns only the consequence
+   * and its EN-8 rank.
+   *
+   * Optional so an engine-level test can ignore round structure. Absent means
+   * open, which matches the pre-M1.4 behaviour of every existing call site.
+   */
+  readonly entryOpen?: boolean;
 }
 
 /**
@@ -134,6 +199,17 @@ export interface OpenRequest {
 export type RejectCode =
   /** Session-terminal: the player's loss limit is reached (RP-2). */
   | 'LOSS_LIMIT_REACHED'
+  /**
+   * Round-scoped: the request arrived after the T−5 s entry cutoff, or outside
+   * `running` entirely (EN-1). The stake never leaves the wallet.
+   *
+   * Ranked directly below the loss lock and above `POSITION_OPEN` for the EN-8
+   * reason: the entry window is the condition the player must resolve *first* —
+   * it is the one that no other action this round can clear, whereas an open
+   * position settles on its own. Telling a player "POSITION OPEN" when the
+   * window has also shut implies waiting for the settle would let them in.
+   */
+  | 'ENTRY_CLOSED'
   /** Round-scoped: a live position already exists (EN-5). */
   | 'POSITION_OPEN'
   /** Actionable: the stake exceeds the wallet. */

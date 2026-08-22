@@ -15,6 +15,7 @@ export const el={
   betPanel:$('#betPanel'), armedPanel:$('#armedPanel'), cashPanel:$('#cashPanel'),
   armedTxt:$('#armedTxt'), cashAmt:$('#cashAmt'), cashMult:$('#cashMult'),
   cashLabel:$('#cashLabel'), btnCash:$('#btnCash'), piLeft:$('#piLeft'),
+  o2Fill:$('#o2Fill'), hatch:$('#hatchMsg'),
   piRight:$('#piRight'), msg:$('#consoleMsg'),
   btnS:$('#btnSurface'), btnD:$('#btnDive'), session:$('#sessionClock')
 };

@@ -17,13 +17,28 @@ Authoritative documents (keep them in the repo root, keep them current):
 
 Phase 1 complete: single-file HTML prototype with simulated feed, full round loop, positions, cash-out ascent, liquidation, bot feed, responsible-play UI.
 
-Phase 1.5 in progress. **M1.1 (specs), M1.2 (toolchain + monorepo layout) and M1.3 (pure engine port) are done.** The prototype was split into ES modules as a pure structural change, then moved under `apps/client/` by `git mv` with no content change. The repo is now an npm-workspaces monorepo with Vite, TypeScript strict and Vitest; `npm test`, `npm run typecheck` and `npm run build` all run in CI on push.
+Phase 1.5 in progress. **M1.1 (specs), M1.2 (toolchain + monorepo layout), M1.3 (pure engine port) and M1.4 (oxygen, round timings, entry cutoff) are done.** The prototype was split into ES modules as a pure structural change, then moved under `apps/client/` by `git mv` with no content change. The repo is now an npm-workspaces monorepo with Vite, TypeScript strict and Vitest; `npm test`, `npm run typecheck` and `npm run build` all run in CI on push.
 
 M1.3 moved position math and settlement into `packages/engine` as pure TypeScript: no DOM, no timers, no clock reads, no RNG. Every entry point takes a state and returns a new one plus an `EngineEvent[]`, so the five direct `FX`/`Au`/`feedMsg`/`toast`/`checkLossLimit` calls are gone. Money is `Cents` end to end with round-half-away-from-zero applied exactly once at settlement, replacing `Math.round`. `apps/client/src/core/engine.js` is now a thin adapter over the package. 87 tests, 100% coverage on `packages/*`.
 
 M1.3 also settled four spec questions the port surfaced — the crush line is authoritative over `M_t ≤ 0` where floats separate them, rejection precedence is fixed by `EN-8`, `NO_PRICE` is distinct from MF-1 SIGNAL LOST, and a client mirror may never be stricter than the engine. The specs were amended (`CR-1`, `CR-3`, `CR-6`, `EN-8`, `EN-9`, `BO-2`, game logic §5); see `docs/decisions/0002-pure-engine-and-event-seam.md`.
 
-The remaining Phase 1.5 tasks (M1.4 oxygen and round timings, M1.5 risk caps and auto cash-out, M1.6 replay source, M1.7 Monte-Carlo harness, M1.8 PixiJS port) are unstarted. **There is still no house edge** — the `−θτ` term arrives with M1.4.
+M1.4 added the house edge. `M_t` carries the `−θ·τ` term, the crush line creeps
+per `CR-3`, an O₂ gauge drains on the cash-out button, and the round moved to
+90 s / 8 s with a T−5 s entry cutoff. **τ is a tick count, never a clock
+reading** — `Position.ticksElapsed × config.tickSeconds` — and it advances in
+`onTick` *before* anything is evaluated against it, which is what makes the line
+the engine tests and the line the client draws the same number on the same tick
+(`CR-6`). θ is read from `EngineConfig` and **snapshotted onto each position at
+entry**, so `PL-2`'s round-boundary rule holds even against a caller that swapped
+config mid-round. The entry cutoff is handed to the engine as
+`OpenRequest.entryOpen` rather than computed from a clock the engine must not
+own, and `ENTRY_CLOSED` ranks second in `EN-8`. Specs amended (`EN-1`, `EN-8`,
+`PL-1`, `PL-2`, game logic §5 and §13); see
+`docs/decisions/0003-oxygen-tick-derived-tau-and-round-timings.md`.
+126 tests, 100% coverage on `packages/*`; test files are now typechecked too.
+
+The remaining Phase 1.5 tasks (M1.5 risk caps and auto cash-out, M1.6 replay source, M1.7 Monte-Carlo harness, M1.8 PixiJS port) are unstarted. **θ is not yet calibrated** — 0.25 %/s is the spec's opening value and M1.7 sets the real one against RTP 96.5 %.
 
 ### Where things live
 
@@ -39,7 +54,7 @@ apps/client/src/
   util/                 dom ($), math (clamp/lerp/now/wait), random (LCG/gauss/noise/RSEED), format (fmt$/fmtClock)
   state/store.js        S — mutable game state singleton
   feed/                 SimulatedIndexSource, InterpBuffer, and the source/buffer singletons
-  core/                 engine (position math + settlement), gateway, round (state machine), bots
+  core/                 engine (adapter), gateway, entry-window (EN-1 cutoff), round (state machine), bots
   audio/audio.js        Au synth + pointerdown unlock
   render/               palette (depth colour ramp), renderer (Canvas 2D — one file, see ARCHITECTURE.md)
   ui/                   dom-refs, feed, history, overlay, console, sheets, responsible
@@ -54,6 +69,14 @@ Run it with `npm install` then `npm run dev` (Vite, http://localhost:5173). ES m
 - **`InterpBuffer` stays out of `render/`.** Ticks are authoritative; the interpolated value is presentation. Keeping them in separate modules makes invariant 3 structurally visible.
 - **New module with side effects?** Add its import to `main.js` at the position matching the documented order, and update the side-effect table in `ARCHITECTURE.md`.
 - **`engine.js` is a client adapter now, not the engine.** The math lives in `@crush/engine`; `apps/client/src/core/engine.js` holds the engine state, mirrors it into `S`, turns `EngineEvent`s into `FX`/`Au`/`feedMsg`/`toast`/`checkLossLimit` calls, and owns the 900 ms delay before a settled position clears. Keep new game logic in the package, not the adapter.
+- **τ never comes from a clock, and θ never from a literal.** Oxygen is
+  `Position.ticksElapsed × config.tickSeconds`, advanced once per tick at the top
+  of `onTick`; θ is read from `EngineConfig` and frozen onto the position at
+  entry. Both rules exist so a replayed round settles identically (M1.6) and so
+  M1.7 can sweep θ. `packages/engine/test/purity.test.ts` bans the clock reads.
+- **The crush line has exactly one implementation.** `positionCrushIndex` is what
+  the engine tests against *and* what the renderer draws; never recompute it
+  client-side. `CR-6` makes a one-tick drift between the two a release blocker.
 - There is deliberately **no `economy/` folder** in Phase 1. It is the intended home for ledger and payout arithmetic when that logic is extracted from `Engine` in Phase 2.
 
 ## Non-negotiable invariants
@@ -73,12 +96,14 @@ Violating any of these is a bug regardless of what any task says:
 ## Game constants (v1 — mirror of the spec's parameter sheet)
 
 ```
-TICK 8 Hz · BUFFER 150 ms · ASCENT 500 ms
-ROUND 90 s · INTERMISSION 8 s · ENTRY CUTOFF T−5 s
+TICK 8 Hz (0.125 s) · BUFFER 150 ms · ASCENT 500 ms
+ROUND 90 s · INTERMISSION 8 s · ENTRY CUTOFF T−5 s   (all live in CFG)
 I₀ = 1000 · λ = 0.997 · σ_floor = 1.2 bp/tick · clamp ±3.5σ · v = 0.0042
 LEVERAGE {2, 5, 10, 25} · stake×lev ≤ $2,000 · max win 50× and $10k
 θ = 0.25 %/s (RTP target 96.5 %, calibrate by simulation)
-M_t = 1 + L·d·(I_t/I_e − 1) − θ·τ ;  crush at first tick M_t ≤ 0
+M_t = 1 + L·d·(I_t/I_e − 1) − θ·τ ;  τ = ticks-since-entry × 0.125 (entry = tick 0)
+crush at the first tick the index reaches the line I_e·(1 − d·(1 − θτ)/L)
+  — the LINE is authoritative where floats separate it from M_t ≤ 0
 ```
 
 ## Target repo structure (migrate toward this; don't half-migrate)
@@ -108,8 +133,8 @@ M_t = 1 + L·d·(I_t/I_e − 1) − θ·τ ;  crush at first tick M_t ≤ 0
 
 1. ~~Repo scaffold~~ — **done**. The ES-module split (see "Where things live") plus M1.2: npm workspaces, Vite, TypeScript strict, Vitest with an 80% coverage gate over `packages/*`, and CI on push. `apps/client` is still JavaScript (`allowJs`, `checkJs` off) because M1.8 replaces `render/` wholesale; **new code should be `.ts`.**
 2. ~~Port engine math into `/packages/engine` with unit tests against the acceptance criteria~~ — **done (M1.3)**. Tests are named by AC id; `packages/engine/test/purity.test.ts` is the durable guard on the no-DOM/no-timer/no-clock/no-RNG rule.
-3. Add oxygen: `−θτ` in the multiplier, O₂ bar draining on the cash-out button, crush line creeping in the scene.
-4. Round 90 s, entry cutoff T−5 s, intermission 8 s.
+3. ~~Add oxygen: `−θτ` in the multiplier, O₂ bar draining on the cash-out button, crush line creeping in the scene.~~ — **done (M1.4)**.
+4. ~~Round 90 s, entry cutoff T−5 s, intermission 8 s.~~ — **done (M1.4)**. The tick loop is written in `CR-1` order with the auto-order slot empty and a test asserting nothing settles from it, so M1.5 fills the slot rather than rewriting the loop.
 5. Auto cash-out (take-profit) + stop-loss, set at entry, triggering the same 500 ms ascent. Also the re-entry cooldown (`reentryCooldownMs` + `COOLING_OFF`) — see ADR 0002 — and the `CR-6` client-line-vs-engine-line assertion.
 6. Max-win auto-surface at 50×.
 7. `ReplayIndexSource` that replays recorded real BTC 100 ms data files.
@@ -119,7 +144,7 @@ M_t = 1 + L·d·(I_t/I_e − 1) − θ·τ ;  crush at first tick M_t ≤ 0
 
 ## Working conventions
 
-- TypeScript strict everywhere; no `any` in engine or ledger code. Enforced by `npm run typecheck` (`tsc --build`, strict + `noUncheckedIndexedAccess` + `exactOptionalPropertyTypes`). The exception is `apps/client`, where the Phase 1 prototype remains unchecked JavaScript until it migrates into packages.
+- TypeScript strict everywhere; no `any` in engine or ledger code. Enforced by `npm run typecheck` (`tsc --build`, strict + `noUncheckedIndexedAccess` + `exactOptionalPropertyTypes`), which since M1.4 also typechecks `packages/*/test` via `tsconfig.tests.json` — a hand-built fixture that no longer matches its type must fail the build, not surface as a runtime `NaN`. The exception is `apps/client`, where the Phase 1 prototype remains unchecked JavaScript until it migrates into packages.
 - Money is `Cents` from `@crush/ledger` — a branded integer type, so a float in a money field is a compile error (`LG-2`). Convert float multipliers to money exactly once, at settlement, via `scaleCents` / `roundHalfAwayFromZero` (`PL-4`).
 - Every engine change: unit tests first, referencing acceptance-criteria ids.
 - Conventional commits (`feat(engine): …`, `fix(feed): …`).

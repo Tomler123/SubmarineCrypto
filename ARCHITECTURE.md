@@ -39,8 +39,9 @@ apps/client/src/
     InterpBuffer.js
     index.js            the `source` and `buffer` singletons
   core/                 pure-ish game logic
-    engine.js           position math, tick-authoritative settlement
+    engine.js           adapter over @crush/engine: state mirror + event → effect
     gateway.js          request/ack seam for player actions
+    entry-window.js     EN-1 T−5s cutoff predicate (pure read of S + CFG)
     round.js            round state machine
     bots.js             fake social layer
   audio/audio.js        Au synth + pointerdown unlock listener
@@ -152,17 +153,25 @@ dependencies before dependents) plus the explicit import order in `main.js`.
 Actual evaluation order:
 
 ```
- 1. config/constants.js          11. render/palette.js       21. core/bots.js
- 2. util/math.js                 12. render/renderer.js      22. ui/history.js
- 3. state/store.js               13. ui/dom-refs.js          23. core/round.js
- 4. util/random.js               14. ui/feed.js              24. loop/frame.js
- 5. feed/SimulatedIndexSource.js 15. ui/overlay.js           25. main.js
- 6. feed/InterpBuffer.js         16. core/gateway.js
- 7. feed/index.js                17. ui/console.js
- 8. util/format.js               18. ui/sheets.js
- 9. util/dom.js                  19. ui/responsible.js
-10. audio/audio.js               20. core/engine.js
+ 1. config/constants.js          11. render/palette.js       21. core/engine.js
+ 2. util/math.js                 12. render/renderer.js      22. core/bots.js
+ 3. state/store.js               13. ui/dom-refs.js          23. ui/history.js
+ 4. util/random.js               14. ui/feed.js              24. core/round.js
+ 5. feed/SimulatedIndexSource.js 15. ui/overlay.js           25. loop/frame.js
+ 6. feed/InterpBuffer.js         16. core/entry-window.js    26. main.js
+ 7. feed/index.js                17. core/gateway.js
+ 8. util/format.js               18. ui/console.js
+ 9. util/dom.js                  19. ui/sheets.js
+10. audio/audio.js               20. ui/responsible.js
 ```
+
+> **M1.4 note.** `core/entry-window.js` was inserted at step 16, ahead of
+> `core/gateway.js` which imports it, shifting every later step by one. It
+> carries **no module-level side effects** — it is a pure read of `S` and `CFG` —
+> so it adds no row to the table below. It is its own module rather than part of
+> `round.js` because both `gateway.js` and `ui/console.js` need the predicate,
+> and importing `round.js` from `gateway.js` would close a
+> `round → gateway → round` cycle for one function.
 
 The side effects that must fire in this relative order, and where they live:
 
@@ -172,17 +181,18 @@ The side effects that must fire in this relative order, and where they live:
 | 2 | `document.addEventListener('pointerdown', …)` audio unlock | `audio/audio.js` | 10 |
 | 3 | `window.addEventListener('resize', resize)` | `render/renderer.js` | 12 |
 | 4 | DOM node caching (`$('#…')` lookups) | `ui/dom-refs.js` | 13 |
-| 5 | Console listeners (stake, presets, leverage, dir, cash-out) | `ui/console.js` | 17 |
-| 6 | Sheet + scrim listeners | `ui/sheets.js` | 18 |
-| 7 | Limits / reality-check / sound listeners, 1 s session `setInterval` | `ui/responsible.js` | 19 |
-| 8 | `source.onTick(...)` tick wiring | `main.js` | 25 |
-| 9 | Boot: `resize()`, `setStake()`, `setPhase('waiting')`, `rAF(frame)` | `main.js` | 25 |
+| 5 | Console listeners (stake, presets, leverage, dir, cash-out) | `ui/console.js` | 18 |
+| 6 | Sheet + scrim listeners | `ui/sheets.js` | 19 |
+| 7 | Limits / reality-check / sound listeners, 1 s session `setInterval` | `ui/responsible.js` | 20 |
+| 8 | `source.onTick(...)` tick wiring | `main.js` | 26 |
+| 9 | Boot: `resize()`, `setStake()`, `setPhase('waiting')`, `rAF(frame)` | `main.js` | 26 |
 
-**Why the feed timer starting (step 7) before the tick subscription (step 25)
+**Why the feed timer starting (step 7) before the tick subscription (step 26)
 is safe:** `SimulatedIndexSource`'s constructor sets `this.live = false`, and
 `_tick()` is gated on `if (this.live)`. The timer emits nothing until
-`resetRound()` is called from `setPhase('running')` — roughly 6.4 s after boot
-(5 s waiting + 1.4 s launching). No tick can be missed. The same gap existed in
+`resetRound()` is called from `setPhase('running')` — roughly 9.4 s after boot
+since M1.4 (8 s intermission + 1.4 s launching; it was 6.4 s at the prototype's
+5 s intermission). No tick can be missed. The same gap existed in
 the prototype (line 387 → line 510); it is merely wider in wall-clock terms now
 and still entirely synchronous.
 

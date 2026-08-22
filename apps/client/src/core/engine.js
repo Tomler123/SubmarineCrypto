@@ -13,6 +13,7 @@ import {
   livePnl,
   onTick as engineOnTick,
   open as engineOpen,
+  oxygenFraction,
   positionCrushIndex,
   requestAscent as engineRequestAscent,
   setLossLocked,
@@ -42,6 +43,24 @@ import {
 
 /** Authoritative engine state. `S` is a derived view of it, never the source. */
 let state = initialState(CFG.START_BAL);
+
+/**
+ * The config in force for the current round (PL-2).
+ *
+ * Read once at a round boundary and then held constant for the whole round, so
+ * a theta change can never reach a position that is already open. `CFG` is a
+ * module constant today; in Phase 2 this same call site reads remote config,
+ * and the round-boundary rule is already the shape of the code rather than
+ * something that has to be remembered.
+ */
+function configFromSettings(){
+  return {
+    ascentMs: CFG.ASCENT_MS,
+    thetaPerSecond: CFG.THETA_PER_S,
+    tickSeconds: CFG.TICK_S,
+  };
+}
+let roundConfig = configFromSettings();
 
 let clearTimer = 0;
 
@@ -110,32 +129,55 @@ function apply(result){
 let nextPositionId = 0;
 
 export const Engine = {
+  /**
+   * Re-read the tunables for the round that is about to start (PL-2).
+   *
+   * Called from the round machine at the `launching` boundary and nowhere else.
+   * A theta change therefore takes effect at the next round and never mid-round
+   * — and even if this were called mid-round, every open position carries the
+   * theta it was opened under, so the edge on a live position cannot move.
+   */
+  beginRound(){ roundConfig = configFromSettings(); },
+
+  /** The config in force this round; the renderer reads `tickSeconds` from it. */
+  config(){ return roundConfig; },
+
   /** Live P&L in cents at index value `v` — presentation only (UI-2). */
-  pnl(v){ return state.position ? livePnl(state.position, v) : 0; },
+  pnl(v){ return state.position ? livePnl(state.position, v, roundConfig.tickSeconds) : 0; },
 
-  /** The crush line for the open position; read by the renderer and console. */
-  liqIdx(p){ return positionCrushIndex(p); },
+  /**
+   * The crush line for the open position; read by the renderer and console.
+   *
+   * CR-3/CR-6: this is the engine's own line, at the position's own tau — the
+   * same computed number `isCrushed` tests against, not a re-derivation. The
+   * client rounds it for display and never recomputes it.
+   */
+  liqIdx(p){ return positionCrushIndex(p, roundConfig.tickSeconds); },
 
-  open(dir, stake, lev){
+  /** Oxygen remaining in [0,1] for the O2 bar on the cash-out button (UI-4). */
+  oxygen(p){ return oxygenFraction(p, roundConfig.tickSeconds); },
+
+  open(dir, stake, lev, entryOpen){
     // The client mirrors the loss lock into the engine before every entry, so
     // the engine's own RP-2 rejection stays the single decision point.
     state = setLossLocked(state, S.lossLocked);
     nextPositionId += 1;
     const result = apply(engineOpen(
       state,
-      { dir, stake, lev, id: `p${nextPositionId}` },
+      { dir, stake, lev, id: `p${nextPositionId}`, entryOpen },
       S.lastTick,
+      roundConfig,
     ));
     const rejection = result.events.find(e => e.kind === 'open-rejected');
     if (rejection) return { ok:false, err: REJECT_COPY[rejection.code] ?? 'REJECTED' };
     return { ok:true };
   },
 
-  requestAscent(){ apply(engineRequestAscent(state, now(), { ascentMs: CFG.ASCENT_MS })); },
+  requestAscent(){ apply(engineRequestAscent(state, now(), roundConfig)); },
 
-  onTick(tk){ apply(engineOnTick(state, tk)); },
+  onTick(tk){ apply(engineOnTick(state, tk, roundConfig)); },
 
-  forceSettleAtRoundEnd(){ apply(settleAtRoundEnd(state, S.lastTick)); }
+  forceSettleAtRoundEnd(){ apply(settleAtRoundEnd(state, S.lastTick, roundConfig)); }
 };
 
 /** Engine reject codes → the console copy the prototype showed. */
@@ -149,6 +191,10 @@ const REJECT_COPY = {
   // the ability to tell "the feed died" from "one entry raced the round start",
   // and a rising NO_PRICE rate is exactly the early warning worth keeping.
   NO_PRICE: 'STANDBY — NO ENTRY PRICE YET',
+  // EN-1. Deliberately states the reason rather than a bare "REJECTED": the
+  // window shutting at T−5s is a rule the player can learn and play around,
+  // which is the whole point of having it.
+  ENTRY_CLOSED: 'HATCH SEALED — TOO LATE TO DIVE',
 };
 
 sync();

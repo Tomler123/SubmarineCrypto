@@ -189,11 +189,19 @@ export function draw(t, dt){
   }
   const tilt = clamp(slope*view.pxm*260, -0.4, 0.4);
 
-  /* tension: proximity to player's crush line */
+  /* tension: proximity to player's crush line.
+     M1.4: liqIdx is the engine's own creeping line (CR-3) at the position's own
+     tau — the same number isCrushed tests against, never a re-derivation here
+     (CR-6). As oxygen drains the line walks toward the entry, so `span2`
+     narrows and tension rises even on a motionless index. That is the intended
+     feel: holding is itself dangerous. */
   let tension=0, liqI=0, entI=0;
   if (S.pos && S.pos.state!=='done'){
     const p=S.pos; liqI=Engine.liqIdx(p); entI=p.entry;
-    const span2=Math.abs(entI-liqI);
+    // Guard the degenerate case: once the line has crept all the way onto the
+    // entry, span2 is 0 and the ratio is NaN. Clamp keeps tension pinned high,
+    // which is correct — that position is one tick from crushing.
+    const span2=Math.max(Math.abs(entI-liqI), 1e-9);
     tension = clamp(1-Math.abs(v-liqI)/(span2*0.55), 0, 1);
   }
 

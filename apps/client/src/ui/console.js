@@ -6,6 +6,7 @@ import { el } from './dom-refs.js';
 import { Au } from '../audio/audio.js';
 import { Engine } from '../core/engine.js';
 import { Gateway } from '../core/gateway.js';
+import { entryOpen, entrySecondsLeft } from '../core/entry-window.js';
 
 /* ================================================================
    UI SYNC + INPUT
@@ -35,6 +36,10 @@ export async function tryOpen(dir){
   if (S.lossLocked){ flashMsg('LOSS LIMIT REACHED — BETTING LOCKED'); return; }
   if (S.balance < S.stake){ flashMsg('INSUFFICIENT BALANCE'); return; }
   if (S.phase==='running'){
+    // Not re-checked here beyond the disabled button: the Gateway asks EN-1 at
+    // ack time and the engine owns the rejection, so a tap that races the cutoff
+    // gets the engine's answer rather than a second, differently-timed client
+    // opinion. The mirror must never be stricter than the authority (ADR 0002).
     const r=await Gateway.openPosition({dir, stake:S.stake, lev:S.lev});
     if (!r.ok) flashMsg(r.err);
   } else if (S.phase==='waiting'||S.phase==='launching'){
@@ -55,9 +60,19 @@ export function syncConsole(v){
   el.betPanel.classList.toggle('hidden', !!(hasPos||S.armed));
   el.armedPanel.classList.toggle('hidden', !(S.armed&&!hasPos));
   el.cashPanel.classList.toggle('hidden', !hasPos);
+  // EN-1: during `running` the window is the cutoff; `waiting`/`launching` arm
+  // a bet for launch, which is inside the window by construction.
+  const windowOpen = S.phase==='running' ? entryOpen() : true;
   const canBet=(S.phase==='running'||S.phase==='waiting'||S.phase==='launching')
-    && S.balance>=S.stake && !S.lossLocked;
+    && windowOpen && S.balance>=S.stake && !S.lossLocked;
   el.btnS.disabled=el.btnD.disabled=!canBet;
+  // The last 10s get a visible countdown rather than a silently dead button —
+  // the cutoff is a rule to play around, not a glitch to notice.
+  if (!hasPos && !S.armed && S.phase==='running'){
+    const left = entrySecondsLeft();
+    el.hatch.textContent = left<=0 ? 'HATCH SEALED · NO NEW DIVES'
+      : left<=10 ? `HATCH SEALS IN ${left.toFixed(1)}S` : '';
+  } else if (el.hatch.textContent) el.hatch.textContent='';
   if (hasPos){
     const p=S.pos;
     // M1.3: through the engine, not a second copy of the P&L formula, so the
@@ -67,6 +82,11 @@ export function syncConsole(v){
     el.cashAmt.textContent=fmt$(pay);
     el.cashMult.textContent=(pay/p.stake).toFixed(2)+'\u00D7';
     el.btnCash.classList.toggle('neg', pnlI<0);
+    // O2 bar (UI-4): the engine's own oxygen fraction for this position, so the
+    // bar depicts the same theta and tau the multiplier above it is paying.
+    const o2=Engine.oxygen(p);
+    el.o2Fill.style.width=(o2*100).toFixed(2)+'%';
+    el.btnCash.classList.toggle('lowO2', o2<0.35);
     el.piLeft.innerHTML=`${p.dir>0?'\u25B2':'\u25BC'} ${fmt$(p.stake)} \u00D7${p.lev}`;
     el.piRight.textContent=`entry ${p.entry.toFixed(1)} \u00B7 crush ${Engine.liqIdx(p).toFixed(1)}`;
     if (p.state==='ascending'){

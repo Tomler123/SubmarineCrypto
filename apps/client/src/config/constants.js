@@ -3,8 +3,14 @@ export const CFG = {
   TICK_MS: 125,           // 8 Hz feed
   DELAY_MS: 150,          // interpolation buffer delay
   ASCENT_MS: 500,         // ballast-blow cash-out delay
-  ROUND_MS: 75000,        // ASSUMPTION: 75s max round
-  WAIT_MS: 5000,
+  ROUND_MS: 90000,        // 90s round — parameter sheet §12, RL-2
+  ENTRY_CUTOFF_MS: 5000,  // no new positions in the last 5s (T−5s, EN-1)
+  WAIT_MS: 8000,          // 8s intermission — parameter sheet §12, RL-2
+  TICK_S: 0.125,          // seconds per authoritative tick; tau = ticks × this
+  THETA_PER_S: 0.0025,    // oxygen: 0.25%/s, the sole house edge (§5, PL-2).
+                          // The one business dial — everything else here is
+                          // audit-locked. M1.7 replaces it with a calibrated
+                          // value; Phase 2 serves it as remote config.
   LAUNCH_MS: 1400,
   ENDING_MS: 900,
   SETTLE_MS: 4200,

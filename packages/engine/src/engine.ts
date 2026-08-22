@@ -20,7 +20,7 @@
  */
 
 import { type Cents, ZERO, addCents, subCents } from '@crush/ledger';
-import { ascentDue, isCrushed, payoutFor, pnlFor, positionMultiplier } from './position.js';
+import { ascentDue, isCrushed, payoutFor, pnlFor, positionMultiplier, tauOf } from './position.js';
 import type {
   EngineConfig,
   EngineResult,
@@ -34,8 +34,22 @@ import type {
   Wallet,
 } from './types.js';
 
-/** Ascent duration, audit-locked at 500 ms (parameter sheet, FA-2). */
-export const DEFAULT_CONFIG: EngineConfig = Object.freeze({ ascentMs: 500 });
+/**
+ * Default tunables.
+ *
+ * `ascentMs` and `tickSeconds` are audit-locked (parameter sheet §12): the
+ * 500 ms Blow is a fairness constant (FA-2) and 0.125 s is the 8 Hz tick rate.
+ * `thetaPerSecond` is the single business dial — 0.25 %/s is the spec's opening
+ * value, targeting RTP 96.5 %, and M1.7's Monte-Carlo harness replaces it with a
+ * calibrated figure. It lives here, in a config object, rather than as a literal
+ * in the math, because Phase 2 serves it as remote config (PL-2) and because a
+ * literal cannot be swept by a calibration run.
+ */
+export const DEFAULT_CONFIG: EngineConfig = Object.freeze({
+  ascentMs: 500,
+  thetaPerSecond: 0.0025,
+  tickSeconds: 0.125,
+});
 
 /** An empty engine state for a player with `balance` cents. */
 export function initialState(balance: Cents): EngineState {
@@ -73,9 +87,10 @@ function rejected(state: EngineState, code: RejectCode): EngineResult {
  *
  * EN-8 fixes the order the checks run in. The principle: **report the condition
  * the player must resolve first, and never let a transient condition mask a
- * persistent one.** Hence loss-lock (session-terminal) before position-open
- * (round-scoped) before balance (actionable) before no-tick (a system
- * condition, not a player one).
+ * persistent one.** Hence loss-lock (session-terminal) before entry-closed
+ * (round-terminal, M1.4) before position-open (round-scoped, self-clearing)
+ * before balance (actionable) before no-tick (a system condition, not a player
+ * one).
  *
  * The loss-lock position is the one that matters. The prototype checked balance
  * first, so a loss-locked player with a small balance was told "INSUFFICIENT
@@ -83,20 +98,32 @@ function rejected(state: EngineState, code: RejectCode): EngineResult {
  * has already cut off. That is a responsible-play defect (RP-2), not a copy
  * preference, so the ordering is asserted rather than left to reading order.
  */
-export function open(state: EngineState, req: OpenRequest, tick: Tick | null): EngineResult {
+export function open(
+  state: EngineState,
+  req: OpenRequest,
+  tick: Tick | null,
+  config: EngineConfig = DEFAULT_CONFIG,
+): EngineResult {
   // 1. Session-terminal: nothing the player does this round clears it (RP-2).
   if (state.lossLocked) {
     return rejected(state, 'LOSS_LIMIT_REACHED');
   }
-  // 2. Round-scoped: resolves on its own when the position settles (EN-5).
+  // 2. Round-scoped and unresolvable this round: once the window shuts, nothing
+  // the player does reopens it (EN-1). Above POSITION_OPEN so a player whose
+  // position is still settling as the cutoff passes is told the truth rather
+  // than being invited to wait for a window that has already closed.
+  if (req.entryOpen === false) {
+    return rejected(state, 'ENTRY_CLOSED');
+  }
+  // 3. Round-scoped: resolves on its own when the position settles (EN-5).
   if (state.position !== null && state.position.state !== 'done') {
     return rejected(state, 'POSITION_OPEN');
   }
-  // 3. Actionable by the player.
+  // 4. Actionable by the player.
   if (state.wallet.balance < req.stake) {
     return rejected(state, 'INSUFFICIENT_BALANCE');
   }
-  // 4. A system condition: no tick means no `I_e`, so there is nothing to price
+  // 5. A system condition: no tick means no `I_e`, so there is nothing to price
   // the entry at. Distinct from MF-1 SIGNAL LOST, which is a round-level abort
   // — this rejects one request and settles nothing. The prototype could not
   // reach this state because it read `S.lastTick`, seeded at boot, and would
@@ -118,6 +145,12 @@ export function open(state: EngineState, req: OpenRequest, tick: Tick | null): E
     entry: tick.v,
     state: 'open',
     openedT: tick.t,
+    // PL-1: the entry tick is tick 0, so tau = 0 and M is exactly 1 here.
+    ticksElapsed: 0,
+    // PL-2: theta is frozen at entry. A config change between rounds cannot
+    // reach back into a position that is already open, and LG-4's "theta in
+    // force" is this number.
+    theta: config.thetaPerSecond,
     resolveT: 0,
   };
 
@@ -169,9 +202,13 @@ function settle(
   p: Position,
   tick: Tick,
   reason: SettlementReason,
+  config: EngineConfig,
 ): EngineResult {
   const crushed = reason === 'crush';
-  const multiplierAtTick = positionMultiplier(p, tick.v);
+  // PL-3: oxygen accrues during ascent exactly as while open, so this reads the
+  // position's own tau with no special case for `ascending`.
+  const tau = tauOf(p, config.tickSeconds);
+  const multiplierAtTick = positionMultiplier(p, tick.v, config.tickSeconds);
   // PL-4: the single float->money conversion for this position. `payoutFor`
   // floors at zero, so PL-5 (max loss is exactly the stake) holds by
   // construction rather than by a defensive clamp on the pnl.
@@ -186,6 +223,8 @@ function settle(
     stake: p.stake,
     lev: p.lev,
     entry: p.entry,
+    theta: p.theta,
+    tau,
     tick,
     multiplier: multiplierAtTick,
     payout,
@@ -220,23 +259,48 @@ function settle(
  * CR-4 requires that a crush on the same tick as a due ascent takes precedence
  * — which is exactly what checking crush first produces.
  */
-export function onTick(state: EngineState, tick: Tick): EngineResult {
-  const p = state.position;
-  if (p === null || p.state === 'done') return unchanged(state);
+export function onTick(
+  state: EngineState,
+  tick: Tick,
+  config: EngineConfig = DEFAULT_CONFIG,
+): EngineResult {
+  const prior = state.position;
+  if (prior === null || prior.state === 'done') return unchanged(state);
+
+  // 0. Advance tau, before anything is evaluated against it.
+  //
+  // Every check below — the crush line, the auto-order triggers M1.5 adds, the
+  // settlement multiplier — must see this tick's own tau, not the previous
+  // tick's. Incrementing here is what makes that true for all three at once,
+  // and it is the CR-6 requirement stated as code: the position handed to the
+  // checks is the same object the client will draw its line from, so the line
+  // tested at tick n and the line displayed at tick n carry the same tau.
+  //
+  // The entry tick itself never reaches here (`open` returns before this tick
+  // is replayed), so the first tick a position sees is tick 1 — tau = 0.125 s.
+  const p: Position = { ...prior, ticksElapsed: prior.ticksElapsed + 1 };
+  const advanced: EngineState = { ...state, position: p };
 
   // 1. Crush check (CR-1, CR-4).
-  if (isCrushed(p, tick.v)) {
-    return settle(state, p, tick, 'crush');
+  if (isCrushed(p, tick.v, config.tickSeconds)) {
+    return settle(advanced, p, tick, 'crush', config);
   }
 
-  // 2. Auto-order triggers (AO-1…AO-5) — M1.5.
+  // 2. Auto-order triggers (AO-1…AO-5) — M1.5 fills this slot. Its position
+  // between the crush check and the ascent settlement is fixed by CR-1 and is a
+  // correctness contract, not a style choice: a position past its crush line
+  // must crush rather than take-profit, and a trigger firing on this tick starts
+  // an ascent that settles on a *later* tick (AO-2), never this one.
 
   // 3. Pending ascent settlement (CO-1).
   if (ascentDue(p, tick)) {
-    return settle(state, p, tick, 'ascent');
+    return settle(advanced, p, tick, 'ascent', config);
   }
 
-  return unchanged(state);
+  // No settlement, but tau moved: the advanced position is the new state, so
+  // the next tick and every live readout between now and then see this tick's
+  // oxygen.
+  return { state: advanced, events: [] };
 }
 
 /**
@@ -244,10 +308,18 @@ export function onTick(state: EngineState, tick: Tick): EngineResult {
  * at its current multiplier, with no penalty and no fee. CO-5 routes an ascent
  * that has not reached its settlement tick through the same path.
  */
-export function settleAtRoundEnd(state: EngineState, tick: Tick): EngineResult {
+export function settleAtRoundEnd(
+  state: EngineState,
+  tick: Tick,
+  config: EngineConfig = DEFAULT_CONFIG,
+): EngineResult {
   const p = state.position;
   if (p === null || p.state === 'done') return unchanged(state);
-  return settle(state, p, tick, 'round-end');
+  // No tau advance here. The final tick was already delivered through `onTick`,
+  // which counted it; counting it again would charge one extra tick of oxygen
+  // for the privilege of the round ending. RL-4 settles "at the final tick at
+  // its current multiplier" — the multiplier the player was already shown.
+  return settle(state, p, tick, 'round-end', config);
 }
 
 /**

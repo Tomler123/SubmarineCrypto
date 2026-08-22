@@ -102,7 +102,8 @@ Why it's the right edge for this game:
 ```
 d      = +1 Surface, −1 Dive
 Δ_t    = I_t / I_e − 1
-τ      = seconds since entry executed
+τ      = seconds since entry executed, as ticks-since-entry × 0.125
+         (the entry tick is tick 0, so τ = 0 and M = 1 there)
 M_t    = 1 + L·d·Δ_t − θ·τ                multiplier (live on the button)
 payout = stake · max(0, M_settle)          settled in integer cents
 
@@ -242,8 +243,8 @@ Position it as "the first market-driven crash game," not "the first crypto price
 
 ## 13. What this means for the prototype (small diffs)
 
-1. Add oxygen: `M_t` gains the `−θτ` term; O₂ bar drains on the cash-out button; crush line creeps.
-2. Round length 90 s, entry cutoff T−5 s, intermission 8 s.
+1. ~~Add oxygen: `M_t` gains the `−θτ` term; O₂ bar drains on the cash-out button; crush line creeps.~~ **Done (M1.4).**
+2. ~~Round length 90 s, entry cutoff T−5 s, intermission 8 s.~~ **Done (M1.4).**
 3. Auto cash-out / stop-loss inputs (collapsed row under leverage).
 4. Close Calls in the fake feed.
 5. Max-win auto-surface.
