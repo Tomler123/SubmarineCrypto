@@ -1,0 +1,29 @@
+{
+  "name": "crush-depth",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Crush Depth — BTC-price-driven crash game. Monorepo root.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @crush/client",
+    "build": "tsc --build && npm run build --workspace @crush/client",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "coverage": "vitest run --coverage",
+    "typecheck": "tsc --build --force",
+    "clean": "tsc --build --clean"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^3.2.4",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.3",
+    "vitest": "^3.2.4"
+  }
+}

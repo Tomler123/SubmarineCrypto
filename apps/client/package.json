@@ -1,0 +1,18 @@
+{
+  "name": "@crush/client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Crush Depth web client. Phase 1 Canvas 2D prototype; PixiJS v8 port lands in M1.8.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@crush/engine": "*",
+    "@crush/feed": "*",
+    "@crush/gateway": "*",
+    "@crush/ledger": "*"
+  }
+}

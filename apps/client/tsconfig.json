@@ -1,0 +1,26 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist-types",
+    "tsBuildInfoFile": "dist-types/.tsbuildinfo",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
+
+    /* The Phase 1 prototype is still JavaScript. `checkJs` stays off until the
+       client is converted; M1.8 replaces render/ wholesale, so converting it
+       before then would be work thrown away. New client code should be .ts. */
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false
+  },
+  "include": ["src/**/*.ts", "src/**/*.js", "vite.config.ts"],
+  "references": [
+    { "path": "../../packages/engine" },
+    { "path": "../../packages/feed" },
+    { "path": "../../packages/gateway" },
+    { "path": "../../packages/ledger" }
+  ]
+}

@@ -4,6 +4,12 @@ This document describes the folder layout produced by the Phase 1.5 structural
 split of `crush-depth-phase1.html`, and which boundaries are load-bearing for
 Phase 2.
 
+> **M1.2 moved the client.** `index.html`, `src/` and `styles/` now live under
+> `apps/client/`, and the target `packages/*` workspaces exist. Every `src/...`
+> path below is relative to `apps/client/`. The move was pure `git mv` — no
+> file contents changed — so the split described here is otherwise unaffected.
+> See `docs/decisions/0001-monorepo-layout-and-toolchain.md`.
+
 The split was **purely structural**: no logic, naming, formatting, or behaviour
 was changed. The original single-file prototype is preserved verbatim at
 `legacy/crush-depth-phase1.html` for diffing.
@@ -13,10 +19,13 @@ was changed. The original single-file prototype is preserved verbatim at
 ## Folder layout
 
 ```
-index.html              entry point — body markup + <script type="module" src="./src/main.js">
+apps/client/
+  index.html            entry point — body markup + <script type="module" src="./src/main.js">
+  vite.config.ts        dev server + production build
+  styles/               the original <style> block, split by the authored section comments
 legacy/                 untouched Phase 1 single-file prototype (diff reference)
-styles/                 the original <style> block, split by the authored section comments
-src/
+packages/               target workspaces — see "Target packages" below
+apps/client/src/
   main.js               module-map header, tick wiring, boot sequence
   config/constants.js   CFG — every tunable and magic number
   util/                 leaf utilities, no project dependencies
@@ -48,6 +57,30 @@ src/
     responsible.js      loss limits, reality check, session clock, sound toggle
   loop/frame.js         the 60 fps main loop
 ```
+
+---
+
+## Target packages (created at M1.2, filled in later)
+
+The workspaces exist with manifests, tsconfigs and project references so that
+each milestone fills a package rather than inventing one. Placeholder barrels
+carry a package-name constant and a comment naming the milestone that populates
+them.
+
+| Package | Populated by | Holds |
+|---|---|---|
+| `@crush/ledger` | **live now** | branded `Cents`, round-half-away-from-zero, arithmetic guards |
+| `@crush/engine` | M1.3 → M1.5 | position math, settlement, oxygen, crush, risk caps |
+| `@crush/feed` | M1.6 | `IndexSource` contract, simulated / replay / ws sources, `InterpBuffer` |
+| `@crush/gateway` | M2.2 | request/ack seam, optimistic mirror |
+| `@crush/sim` | M1.7 | Monte-Carlo RTP harness, behaviour models |
+
+TypeScript project references declare the dependency graph, so `tsc --build`
+typechecks in dependency order and `packages/engine` has no path by which it
+could import from `apps/client`. `packages/engine/test/purity.test.ts` is the
+durable guard on that rule: it fails on any `render/` `ui/` `audio/` import, any
+`document`/`window` reference, and any `setTimeout`/`setInterval` — including the
+`setTimeout` currently inside `Engine.settle` that M1.3 must remove.
 
 ---
 

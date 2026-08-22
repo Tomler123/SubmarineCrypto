@@ -17,15 +17,17 @@ Authoritative documents (keep them in the repo root, keep them current):
 
 Phase 1 complete: single-file HTML prototype with simulated feed, full round loop, positions, cash-out ascent, liquidation, bot feed, responsible-play UI.
 
-Phase 1.5 in progress. **Step 1 (repo scaffold) is done** as a pure structural split of the prototype into ES modules — no behaviour, logic, naming, or formatting was changed. Plain ES modules, no build tool, no package manager. The remaining Phase 1.5 tasks (engine port with tests, oxygen, round timings, auto cash-out, replay source, Monte-Carlo harness, PixiJS port) are unstarted.
+Phase 1.5 in progress. **M1.1 (specs) and M1.2 (toolchain + monorepo layout) are done.** The prototype was split into ES modules as a pure structural change, then moved under `apps/client/` by `git mv` with no content change. The repo is now an npm-workspaces monorepo with Vite, TypeScript strict and Vitest; `npm test`, `npm run typecheck` and `npm run build` all run in CI on push. The remaining Phase 1.5 tasks (M1.3 engine port with tests, M1.4 oxygen and round timings, M1.5 risk caps and auto cash-out, M1.6 replay source, M1.7 Monte-Carlo harness, M1.8 PixiJS port) are unstarted.
 
 ### Where things live
 
 ```
-index.html              entry point — markup + <script type="module" src="./src/main.js">
+apps/client/            the Phase 1 client (Vite root)
+  index.html            entry point — markup + <script type="module" src="./src/main.js">
+  styles/               tokens, topbar, scene, history, console, sheets
+packages/               engine · feed · gateway · ledger · sim  (see ARCHITECTURE.md)
 legacy/                 untouched Phase 1 prototype (diff reference)
-styles/                 tokens, topbar, scene, history, console, sheets
-src/
+apps/client/src/
   main.js               module-map header, tick wiring, boot sequence
   config/constants.js   CFG — every tunable and magic number
   util/                 dom ($), math (clamp/lerp/now/wait), random (LCG/gauss/noise/RSEED), format (fmt$/fmtClock)
@@ -38,7 +40,7 @@ src/
   loop/frame.js         60 fps main loop
 ```
 
-Run it with any static server from the repo root (`npx serve .`, `python -m http.server 8000`) and open `index.html`. ES modules require HTTP — opening the file directly with `file://` will fail on CORS.
+Run it with `npm install` then `npm run dev` (Vite, http://localhost:5173). ES modules require HTTP — opening the file directly with `file://` will still fail on CORS.
 
 ### Structural rules for this tree
 
@@ -98,7 +100,7 @@ M_t = 1 + L·d·(I_t/I_e − 1) − θ·τ ;  crush at first tick M_t ≤ 0
 
 ## Phase 1.5 task list (current)
 
-1. ~~Repo scaffold~~ — **done** as a plain-ES-module split (see "Where things live"). Vite + TypeScript strict is still the target; the current tree is JS with no build step, so that migration is still ahead.
+1. ~~Repo scaffold~~ — **done**. The ES-module split (see "Where things live") plus M1.2: npm workspaces, Vite, TypeScript strict, Vitest with an 80% coverage gate over `packages/*`, and CI on push. `apps/client` is still JavaScript (`allowJs`, `checkJs` off) because M1.8 replaces `render/` wholesale; **new code should be `.ts`.**
 2. Port engine math from the prototype into `/packages/engine` with unit tests against the acceptance criteria (AC ids in test names, e.g. `PL-3`).
 3. Add oxygen: `−θτ` in the multiplier, O₂ bar draining on the cash-out button, crush line creeping in the scene.
 4. Round 90 s, entry cutoff T−5 s, intermission 8 s.
@@ -111,7 +113,8 @@ M_t = 1 + L·d·(I_t/I_e − 1) − θ·τ ;  crush at first tick M_t ≤ 0
 
 ## Working conventions
 
-- TypeScript strict everywhere; no `any` in engine or ledger code.
+- TypeScript strict everywhere; no `any` in engine or ledger code. Enforced by `npm run typecheck` (`tsc --build`, strict + `noUncheckedIndexedAccess` + `exactOptionalPropertyTypes`). The exception is `apps/client`, where the Phase 1 prototype remains unchecked JavaScript until it migrates into packages.
+- Money is `Cents` from `@crush/ledger` — a branded integer type, so a float in a money field is a compile error (`LG-2`). Convert float multipliers to money exactly once, at settlement, via `scaleCents` / `roundHalfAwayFromZero` (`PL-4`).
 - Every engine change: unit tests first, referencing acceptance-criteria ids.
 - Conventional commits (`feat(engine): …`, `fix(feed): …`).
 - Label every assumption in code comments as `// ASSUMPTION:` and surface new open questions at the end of your reply, numbered, ordered by impact — that is how the owner works.

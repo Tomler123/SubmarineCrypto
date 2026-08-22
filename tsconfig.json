@@ -1,0 +1,11 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/ledger" },
+    { "path": "./packages/engine" },
+    { "path": "./packages/feed" },
+    { "path": "./packages/gateway" },
+    { "path": "./packages/sim" },
+    { "path": "./apps/client" }
+  ]
+}
