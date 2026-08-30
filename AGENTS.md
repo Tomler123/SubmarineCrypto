@@ -1,7 +1,24 @@
-Use CLAUDE.md as the authoritative project guide.
+# Codex Instructions
 
-After completing any milestone or architectural decision:
-1. Update CLAUDE.md if project state changed.
-2. Update ARCHITECTURE.md if boundaries or module layout changed.
-3. Update acceptance criteria if a new feature introduces new requirements.
-4. Mention the documentation changes in the commit message.
+Read `CLAUDE.md` fully before modifying the repository.
+
+`CLAUDE.md` is the primary AI development guide for this project.
+Follow all architectural rules, invariants, testing requirements,
+documentation conventions, and Git conventions defined there.
+
+Also read the relevant sections of:
+- `ARCHITECTURE.md`
+- `crush-depth-game-logic-v0.1.md`
+- `crush-depth-acceptance-criteria-v0.1.md`
+
+before implementing game-engine, feed, gateway, ledger, or simulation changes.
+
+When project state, architecture, decisions, acceptance criteria, or completed milestones change,
+update the relevant existing documentation, including `CLAUDE.md` where appropriate.
+
+Before considering implementation complete:
+1. Run `npm test`.
+2. Run `npm run typecheck`.
+3. Run `npm run build`.
+4. Review `git diff`.
+5. Do not commit or push unless explicitly requested.
