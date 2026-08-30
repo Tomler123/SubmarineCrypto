@@ -5,8 +5,8 @@
  * Spec: game logic §5, acceptance criteria PL-1, PL-4, PL-5, CR-1, CR-3.
  */
 
-import { type Cents, ZERO, scaleCents, subCents } from '@crush/ledger';
-import type { Direction, Leverage, Position, Tick } from './types.js';
+import { type Cents, ZERO, clampCents, scaleCents, subCents } from '@crush/ledger';
+import type { Direction, EngineConfig, Leverage, Position, Tick } from './types.js';
 
 /**
  * τ for a position, in seconds: `ticksElapsed × tickSeconds` (PL-1).
@@ -123,15 +123,58 @@ export function isCrushed(p: Position, v: number, tickSeconds: number): boolean 
 }
 
 /**
+ * PL-4 / AO-5: the most a single position may pay — `min(50 × stake, $10,000)`.
+ *
+ * A pure function of the stake, so the bound needs no state and no history: the
+ * per-position cap is per position, and the aggregate exposure limits are
+ * RK-1/RK-3's separate concern. Both bounds come from `EngineConfig` rather than
+ * from literals because RK-3 makes them operator-configurable within house
+ * limits, and because `packages/sim` must be able to sweep them at M1.7.
+ *
+ * Exported because the client shows the cap on the bet sheet: a player entitled
+ * to know the ceiling before they stake must read the same number the engine
+ * enforces, not a second copy of the formula.
+ */
+export function maxPayoutFor(stake: Cents, config: PayoutBounds): Cents {
+  const byMultiple = scaleCents(stake, config.maxWinMultiple);
+  return byMultiple < config.maxWinCents ? byMultiple : config.maxWinCents;
+}
+
+/** The slice of `EngineConfig` the payout bound depends on. */
+export interface PayoutBounds {
+  readonly maxWinMultiple: number;
+  readonly maxWinCents: Cents;
+}
+
+/**
  * PL-4: `payout = stake × max(0, M)`, rounded half away from zero to integer
- * cents, computed **once**.
+ * cents, computed **once**, then clamped to `min(50 × stake, $10,000)`.
  *
  * The floor at zero is what makes PL-5 unconditional — a gap tick far past the
  * crush line still pays exactly zero, never a negative balance (CR-5).
+ *
+ * The ceiling is AO-5's max win, and it lives **here**, at the single
+ * float→money conversion, for three reasons:
+ *
+ *  1. **It must be unconditional.** AO-5's auto-surface trigger stops a position
+ *     running past 50×, but a trigger cannot catch a gap tick that crosses the
+ *     cap between two ticks, and a round-end settlement (RL-4) has no trigger to
+ *     route through at all. Clamping at the conversion covers every settlement
+ *     reason by construction rather than by remembering to call it three times.
+ *  2. **It must land after the rounding.** Clamping the float first and rounding
+ *     the result would be a second float→money conversion, which PL-4's
+ *     computed-once rule forbids. Clamping the already-rounded integer is exact.
+ *  3. `clampCents` already existed in `@crush/ledger` and was already tested;
+ *     what was missing was only the call site. Adding arithmetic here rather
+ *     than a call would have been the wrong fix.
+ *
+ * The cap bounds the *money*, never the recorded multiplier: LG-4 retains `M`
+ * as it actually stood, and `Settlement.multiplier` stays unclamped so the audit
+ * trail shows what the position reached and what it was paid.
  */
-export function payoutFor(stake: Cents, m: number): Cents {
+export function payoutFor(stake: Cents, m: number, config: PayoutBounds): Cents {
   if (m <= 0) return ZERO;
-  return scaleCents(stake, m);
+  return clampCents(scaleCents(stake, m), ZERO, maxPayoutFor(stake, config));
 }
 
 /** `pnl = payout − stake`. Bounded below by `−stake` because payout ≥ 0 (PL-5). */
@@ -145,9 +188,18 @@ export function pnlFor(stake: Cents, payout: Cents): Cents {
  * The client calls this every frame with the *interpolated* value; the result
  * is presentation only (UI-2, invariant 3). Settlement never routes through
  * here — it goes through `payoutFor` at a tick.
+ *
+ * It goes through the same capped `payoutFor` as settlement, so the live figure
+ * never promises money the cap will not pay. A readout that climbed past the
+ * ceiling and then settled at it would look like the house shaving a win at the
+ * last moment; showing the bound as it binds is the honest presentation of a
+ * published rule (AO-5).
  */
-export function livePnl(p: Position, v: number, tickSeconds: number): Cents {
-  return pnlFor(p.stake, payoutFor(p.stake, positionMultiplier(p, v, tickSeconds)));
+export function livePnl(p: Position, v: number, config: EngineConfig): Cents {
+  return pnlFor(
+    p.stake,
+    payoutFor(p.stake, positionMultiplier(p, v, config.tickSeconds), config),
+  );
 }
 
 /** True once a tick is at or past an ascending position's settlement time (CO-1). */

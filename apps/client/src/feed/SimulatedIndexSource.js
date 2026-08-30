@@ -1,10 +1,14 @@
 import { CFG } from '../config/constants.js';
 import { clamp, now } from '../util/math.js';
 import { rnd, gauss } from '../util/random.js';
+import { IndexSourceBase } from './monotonic.js';
 
 /* ================================================================
    FEED — SimulatedIndexSource behind the sacred IndexSource seam.
-   Contract: start()/stop(), resetRound(), onTick(fn) → {t,v,ret}.
+   Contract: onTick(fn) → {t,v,ret}, resetRound(), halt().
+   The source self-starts its interval in the constructor and stays dormant
+   until resetRound() opens a round (FEED-F5 — one surface, matching
+   ARCHITECTURE.md §1; there is no start()/stop()).
    Phase 2: WsIndexSource implements the same contract; nothing
    downstream changes.
 
@@ -27,20 +31,20 @@ const SQUALL_MUL_MIN = 2, SQUALL_MUL_MAX = 3;
 /* SIM-ONLY: instrumentation — a "swing" is a completed 2% reversal */
 const SWING_PCT = 0.02;
 
-export class SimulatedIndexSource {
+export class SimulatedIndexSource extends IndexSourceBase {
   constructor(){
-    this.subs=[]; this.idx=CFG.IDX0;
+    super();
+    this.idx=CFG.IDX0;
     this.logSig=0; this.mu=0; this.ew=1; this.live=false;
     this.retHist=[];                       // SIM-ONLY: recent returns, anti-run
     this.squallTicks=0; this.squallMul=1;  // SIM-ONLY: squall state
     this._resetStats();
     this.timer=setInterval(()=>this._tick(), CFG.TICK_MS);
   }
-  onTick(fn){ this.subs.push(fn); }
   resetRound(){ this.idx=CFG.IDX0; this.mu=0; this.live=true;
     this.retHist.length=0; this.squallTicks=0; this.squallMul=1;
     this._resetStats();
-    this._emit(0); }
+    this._emit(0, this._openingStamp()); }
   halt(){ this.live=false; this._reportRound(); }
   _tick(){ if(this.live) this._step(); }
 
@@ -118,8 +122,44 @@ export class SimulatedIndexSource {
     this._updateStats();
     this._emit(ret);
   }
-  _emit(ret){
-    const tk = { t: now(), v: this.idx, ret };
-    for (const f of this.subs) f(tk);
+  /* FEED-F3 — the OPENING tick may not reuse a spent timestamp.
+
+     `resetRound()` emits synchronously, stamped with the clock reading of that
+     moment. The round's final scheduled tick has already used that reading, so
+     a bare `now()` duplicated one timestamp at every round boundary — 99
+     duplicates across 100 rounds, and a `(q.t - p.t)` division by zero waiting
+     for any consumer that interpolates across the pair.
+
+     Fixed at the source rather than left to the gate, because the boundary tick
+     is a legitimate tick that must be DELIVERED, not rejected: it re-bases the
+     index to I0 and opens the round.
+
+     The stamp goes strictly BETWEEN the spent reading and the next scheduled
+     tick, not forward onto it. Landing on `_lastT + TICK_MS` would claim the
+     slot the still-running interval is about to fire into, and that scheduled
+     tick would then be rejected as the duplicate — trading a duplicated
+     timestamp for a dropped one, which is strictly worse: a duplicate is a bad
+     divisor, a drop is a missing price. Half an interval is the natural
+     midpoint, is representable in float without loss at these magnitudes, and
+     leaves the round's scheduled cadence untouched.
+
+     Deliberately scoped to the round opening and nowhere else. An unconditional
+     nudge in `_emit` would hand every emission a fresh timestamp on demand,
+     which is precisely the guarantee FI-8 exists to withhold: it would make the
+     monotonicity gate unreachable and a genuinely stale tick indistinguishable
+     from a boundary. Scheduled ticks stamp the raw clock and face the gate like
+     any other source's would.
+
+     Under a live clock the reading has already moved past `_lastT` by the time
+     a round opens, so `now()` wins and this is a no-op. It binds only when two
+     emissions land inside one reading — the fake-timer case here, and the
+     replay-from-file case in M1.6. */
+  _openingStamp(){
+    const t = now();
+    if (!Number.isFinite(this._lastT)) return t;
+    return Math.max(t, this._lastT + CFG.TICK_MS / 2);
+  }
+  _emit(ret, t = now()){
+    this._publish({ t, v: this.idx, ret });
   }
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { cents } from '@crush/ledger';
 import {
+  DEFAULT_CONFIG,
   crushIndex,
   isCrushed,
   livePnl,
@@ -390,26 +391,26 @@ function nextDown(x: number): number {
 
 describe('PL-4 — payout = stake × max(0, M), rounded once', () => {
   it('PL-4: pays stake × M for a winning multiplier', () => {
-    expect(payoutFor(cents(50_000), 2)).toBe(100_000);
-    expect(payoutFor(cents(50_000), 1.5)).toBe(75_000);
+    expect(payoutFor(cents(50_000), 2, DEFAULT_CONFIG)).toBe(100_000);
+    expect(payoutFor(cents(50_000), 1.5, DEFAULT_CONFIG)).toBe(75_000);
   });
 
   it('PL-4: floors at zero for a non-positive multiplier', () => {
-    expect(payoutFor(cents(50_000), 0)).toBe(0);
-    expect(payoutFor(cents(50_000), -0.4)).toBe(0);
-    expect(payoutFor(cents(50_000), -12)).toBe(0);
+    expect(payoutFor(cents(50_000), 0, DEFAULT_CONFIG)).toBe(0);
+    expect(payoutFor(cents(50_000), -0.4, DEFAULT_CONFIG)).toBe(0);
+    expect(payoutFor(cents(50_000), -12, DEFAULT_CONFIG)).toBe(0);
   });
 
   it('PL-4: rounds half away from zero, not half up', () => {
     // 1 cent × 2.5 = 2.5 → 3, where Math.round would also give 3; the
     // asymmetry that matters is on the pnl side, asserted below.
-    expect(payoutFor(cents(1), 2.5)).toBe(3);
-    expect(payoutFor(cents(3), 0.5)).toBe(2);
+    expect(payoutFor(cents(1), 2.5, DEFAULT_CONFIG)).toBe(3);
+    expect(payoutFor(cents(3), 0.5, DEFAULT_CONFIG)).toBe(2);
   });
 
   it('PL-4: every payout is an integer number of cents', () => {
     for (const m of [0.333333, 1.7777, 2.5, 3.14159, 12.000001]) {
-      expect(Number.isInteger(payoutFor(cents(12_345), m))).toBe(true);
+      expect(Number.isInteger(payoutFor(cents(12_345), m, DEFAULT_CONFIG))).toBe(true);
     }
   });
 });
@@ -418,27 +419,27 @@ describe('PL-5 — maximum loss of any position is exactly the stake', () => {
   it('PL-5: pnl bottoms out at −stake however far past the line the tick lands', () => {
     const stake = cents(50_000);
     for (const m of [0, -0.001, -5, -1000]) {
-      expect(pnlFor(stake, payoutFor(stake, m))).toBe(-50_000);
+      expect(pnlFor(stake, payoutFor(stake, m, DEFAULT_CONFIG))).toBe(-50_000);
     }
   });
 
   it('PL-5: pnl is zero when the multiplier is exactly 1', () => {
     const stake = cents(50_000);
-    expect(pnlFor(stake, payoutFor(stake, 1))).toBe(0);
+    expect(pnlFor(stake, payoutFor(stake, 1, DEFAULT_CONFIG))).toBe(0);
   });
 
   it('PL-5: live P&L never reports worse than −stake', () => {
     const p = positionAt(1, 25, 50_000, I0, 40, THETA);
     for (const v of [960, 900, 500, 1]) {
-      expect(livePnl(p, v, TICK_S)).toBeGreaterThanOrEqual(-50_000);
+      expect(livePnl(p, v, DEFAULT_CONFIG)).toBeGreaterThanOrEqual(-50_000);
     }
   });
 
   it('PL-5: live P&L tracks the multiplier above the line', () => {
     const p = positionAt(1, 10, 50_000, I0); // theta 0: isolate the price term
     // +1% index at 10× → M = 1.10 → payout 55_000 → pnl +5_000.
-    expect(livePnl(p, 1010, TICK_S)).toBe(5_000);
+    expect(livePnl(p, 1010, DEFAULT_CONFIG)).toBe(5_000);
     // −1% index at 10× → M = 0.90 → payout 45_000 → pnl −5_000.
-    expect(livePnl(p, 990, TICK_S)).toBe(-5_000);
+    expect(livePnl(p, 990, DEFAULT_CONFIG)).toBe(-5_000);
   });
 });

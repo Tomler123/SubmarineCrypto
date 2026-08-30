@@ -19,7 +19,7 @@
  * Everything is pure: each entry point takes a state and returns a new one.
  */
 
-import { type Cents, ZERO, addCents, subCents } from '@crush/ledger';
+import { type Cents, ZERO, addCents, cents, subCents } from '@crush/ledger';
 import { ascentDue, isCrushed, payoutFor, pnlFor, positionMultiplier, tauOf } from './position.js';
 import type {
   EngineConfig,
@@ -49,6 +49,11 @@ export const DEFAULT_CONFIG: EngineConfig = Object.freeze({
   ascentMs: 500,
   thetaPerSecond: 0.0025,
   tickSeconds: 0.125,
+  // PL-4 / AO-5, parameter sheet §12: 50× and $10,000. Operator-configurable
+  // within house limits (RK-3) and audit-logged on change, unlike theta which
+  // is the routine dial.
+  maxWinMultiple: 50,
+  maxWinCents: cents(1_000_000),
 });
 
 /** An empty engine state for a player with `balance` cents. */
@@ -104,6 +109,36 @@ export function open(
   tick: Tick | null,
   config: EngineConfig = DEFAULT_CONFIG,
 ): EngineResult {
+  // 0. EN-7: a replay of a request already accepted is a no-op that re-reports
+  // the position it created. Ranked above every EN-8 rejection, because the
+  // ranks answer "why can't you open a position?" and a replay is not asking
+  // that — it is asking "did my request land?", to which the answer is yes.
+  //
+  // Concretely: a retry after a dropped ack must not be told POSITION_OPEN
+  // about its own position, and must not be told LOSS_LIMIT_REACHED,
+  // ENTRY_CLOSED, INSUFFICIENT_BALANCE or NO_PRICE either. Each of those would
+  // tell the client its entry failed while the stake sits debited and the
+  // position sits open — the exact reconciliation break the idempotency key
+  // exists to prevent. The stake is already debited, so re-running the balance
+  // check would also reject a position that is already paid for.
+  //
+  // `I_e` is not re-derived: the position keeps the entry tick it executed at
+  // (EN-2), so a retry arriving many ticks later cannot re-price it. That is
+  // what makes the retry safe to send at all.
+  //
+  // The window is the position's lifetime in engine state — through `done`,
+  // until `clearSettled` drops it. Past that the id has left the engine and
+  // EN-5 plus LG-3 (ledger idempotency by operation id) govern; a Phase 2
+  // authority keeps a longer-lived id set, which is a server concern.
+  if (state.position !== null && state.position.id === req.id) {
+    return {
+      state,
+      // The original `position-opened`, repeated. No `wallet-changed`: nothing
+      // moved, and a spurious one would re-run the client's responsible-play
+      // check against an unchanged balance.
+      events: [{ kind: 'position-opened', position: state.position }],
+    };
+  }
   // 1. Session-terminal: nothing the player does this round clears it (RP-2).
   if (state.lossLocked) {
     return rejected(state, 'LOSS_LIMIT_REACHED');
@@ -211,8 +246,11 @@ function settle(
   const multiplierAtTick = positionMultiplier(p, tick.v, config.tickSeconds);
   // PL-4: the single float->money conversion for this position. `payoutFor`
   // floors at zero, so PL-5 (max loss is exactly the stake) holds by
-  // construction rather than by a defensive clamp on the pnl.
-  const payout = crushed ? ZERO : payoutFor(p.stake, multiplierAtTick);
+  // construction rather than by a defensive clamp on the pnl, and caps at
+  // min(50 x stake, $10,000) (AO-5) — on EVERY reason, because a gap tick can
+  // cross the cap between two ticks and RL-4 has no trigger to route through.
+  // `multiplierAtTick` stays unclamped: LG-4 retains M as it actually stood.
+  const payout = crushed ? ZERO : payoutFor(p.stake, multiplierAtTick, config);
   const pnl = pnlFor(p.stake, payout);
 
   const settlement: Settlement = {

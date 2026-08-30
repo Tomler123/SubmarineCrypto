@@ -114,13 +114,15 @@
     <button class="sheetClose" data-close>&times;</button>
     <h3>HOW PAYOUTS WORK</h3>
     <div class="mathTable">
-      payout = stake &times; ( 1 + <b>lev</b> &times; &Delta;% &times; dir )<br>
+      payout = stake &times; ( 1 + <b>lev</b> &times; &Delta;% &times; dir &minus; <b>oxygen</b> )<br>
       &Delta;% = index change since <b>your</b> entry<br>
-      dir = +1 Surface &middot; &minus;1 Dive
+      dir = +1 Surface &middot; &minus;1 Dive<br>
+      oxygen = <b>0.25%</b> per second you stay down
     </div>
-    <p>Your hull fails (full stake lost) if the index moves <b>1 / leverage</b> against you — e.g. &minus;10% at 10&times;. Your crush line is always drawn on the chart.</p>
-    <p>Cash-out is not instant: the pod takes <b>0.5s</b> to blow ballast and ascend, and settles at the index when the ascent completes. You can be crushed mid-escape. This delay is the same for everyone — it removes any advantage from faster market feeds.</p>
-    <p style="opacity:.6;font-size:11px">Phase 1 uses a simulated index and play-money balance. No house edge is applied in this build.</p>
+    <p><b>Oxygen is the house edge, and it is the only one.</b> There is no spread on entry, no fee on cash-out, and no haircut on your win. Instead your multiplier drains by 0.25% of your stake every second the position is open &mdash; 1.5% after a minute. Time is the cost of playing. Hold for 60s at 10&times; and the index has to move 1.5% your way just to break even.</p>
+    <p>Your hull fails (full stake lost) when the index reaches your <b>crush line</b>, drawn on the chart from the moment you enter. It starts <b>1 / leverage</b> away from your entry &mdash; at 10&times; from an entry of 1000, that is 900 on a Surface. But oxygen makes it <b>creep toward your entry price</b>: after 30s it is 907.5, after 60s 915. The longer you hold, the smaller the move that kills you. Your loss is always capped at your stake.</p>
+    <p>Cash-out is not instant: the pod takes <b>0.5s</b> to blow ballast and ascend, and settles at the index when the ascent completes. You can be crushed mid-escape. This delay is the same for everyone &mdash; it removes any advantage from faster market feeds.</p>
+    <p style="opacity:.6;font-size:11px">Phase 1 uses a simulated index and play-money balance. The 0.25%/s oxygen rate is a provisional value and is published here whenever it changes.</p>
   </div>
 
   <div class="modal" id="rcModal">

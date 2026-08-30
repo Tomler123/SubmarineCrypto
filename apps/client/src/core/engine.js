@@ -58,6 +58,10 @@ function configFromSettings(){
     ascentMs: CFG.ASCENT_MS,
     thetaPerSecond: CFG.THETA_PER_S,
     tickSeconds: CFG.TICK_S,
+    // PL-4/AO-5. Read at the same round boundary as theta: a cap change is
+    // audit-logged (RK-3) and, like theta, must not move mid-round.
+    maxWinMultiple: CFG.MAX_WIN_MULT,
+    maxWinCents: CFG.MAX_WIN_CENTS,
   };
 }
 let roundConfig = configFromSettings();
@@ -142,8 +146,13 @@ export const Engine = {
   /** The config in force this round; the renderer reads `tickSeconds` from it. */
   config(){ return roundConfig; },
 
-  /** Live P&L in cents at index value `v` — presentation only (UI-2). */
-  pnl(v){ return state.position ? livePnl(state.position, v, roundConfig.tickSeconds) : 0; },
+  /**
+   * Live P&L in cents at index value `v` — presentation only (UI-2).
+   *
+   * Capped exactly as settlement is (PL-4/AO-5), because it goes through the
+   * same `livePnl`: the readout must not promise money the cap will not pay.
+   */
+  pnl(v){ return state.position ? livePnl(state.position, v, roundConfig) : 0; },
 
   /**
    * The crush line for the open position; read by the renderer and console.
@@ -180,8 +189,15 @@ export const Engine = {
   forceSettleAtRoundEnd(){ apply(settleAtRoundEnd(state, S.lastTick, roundConfig)); }
 };
 
-/** Engine reject codes → the console copy the prototype showed. */
-const REJECT_COPY = {
+/**
+ * Engine reject codes → the console copy the prototype showed.
+ *
+ * Exported so `apps/client/test/reject-copy.test.js` can assert this map is
+ * exhaustive over `RejectCode`. It is a read-only lookup for everyone else —
+ * the `?? 'REJECTED'` fallback at the call site exists only as a runtime
+ * backstop and, per that test, must never actually be reachable.
+ */
+export const REJECT_COPY = {
   POSITION_OPEN: 'POSITION OPEN',
   INSUFFICIENT_BALANCE: 'INSUFFICIENT BALANCE',
   LOSS_LIMIT_REACHED: 'LOSS LIMIT REACHED',
@@ -195,6 +211,11 @@ const REJECT_COPY = {
   // window shutting at T−5s is a rule the player can learn and play around,
   // which is the whole point of having it.
   ENTRY_CLOSED: 'HATCH SEALED — TOO LATE TO DIVE',
+  // Reserved for M2.1 (MF-1 round abort). The engine cannot emit this yet, but
+  // the code is declared, so the copy is declared with it: a player who does
+  // hit it at M2.1 must not see a bare "REJECTED", and the exhaustiveness test
+  // must not have to carry an exception list.
+  ROUND_ABORTED: 'DIVE ABORTED — SIGNAL LOST',
 };
 
 sync();

@@ -166,6 +166,22 @@ export interface EngineConfig {
    * audit-locked in production: it is the tick rate, not a tunable.
    */
   readonly tickSeconds: number;
+  /**
+   * Max-win multiple: 50× the stake (parameter sheet §12, AO-5).
+   *
+   * One of the two bounds PL-4 clamps every payout to. Operator-configurable
+   * within house limits per RK-3 — hence config rather than a literal — but
+   * changing it is an audit-logged event, not a routine dial like θ.
+   */
+  readonly maxWinMultiple: number;
+  /**
+   * Absolute max win per position: $10,000, in integer cents (parameter
+   * sheet §12, AO-5). The other half of PL-4's bound.
+   *
+   * `Cents` rather than `number` so the bound cannot be set to a fractional
+   * amount, which would put a float on the clamp side of the money path.
+   */
+  readonly maxWinCents: Cents;
 }
 
 /** A request to open a position, as it arrives from the `Gateway` (invariant 5). */

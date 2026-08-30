@@ -118,7 +118,31 @@ Crush:      position dies at the first tick where the index has reached or
             THE LINE IS AUTHORITATIVE — see below.
 Max win:    forced auto-surface (normal 500 ms ascent) when M_t ≥ 50.
             Cap payout 50× stake, and a per-position absolute cap ($10k v1).
+            payout = clamp(round(stake × max(0, M)), 0, min(50×stake, $10k))
 ```
+
+**The cap and the trigger are two mechanisms (v0.3 amendment).** The forced
+auto-surface and the payout clamp are implemented and tested separately, because
+each without the other is a defect:
+
+- The **clamp is unconditional** — it applies at the single float→money
+  conversion, on every settlement reason. A trigger alone cannot hold the bound:
+  a gap tick can carry `M` past 50 *between* two ticks, and a round-end
+  settlement (§ RL-4) has no trigger to route through at all.
+- The **trigger** stops a position running once the cap can no longer pay more.
+  Without it a capped position keeps risking a crush for no upside — correct
+  arithmetic, indefensible play.
+
+The clamp lands **after** the single rounding, never before: clamping the float
+and then rounding would be a second float→money conversion, which PL-4's
+computed-once rule forbids. The cap bounds the money only — the recorded `M`
+stays unclamped, because LG-4 retains what the position actually reached.
+
+**The cap binds on longs only, by arithmetic.** A Dive's multiplier is
+`1 + L·(1 − I_t/I_e)`, and the index cannot go below zero, so a short's `M` is
+bounded above by `1 + L` — 26 at the top leverage of 25×. No short position can
+reach 50× by price. The 50× auto-surface is therefore a long-side mechanism;
+the short side is bounded by its own arithmetic and needs no trigger.
 
 **Why the line, not the multiplier (v0.2 amendment).** `M_t ≤ 0` and
 `I_t` vs `I_crush(τ)` are inverse in exact arithmetic and *not* inverse in

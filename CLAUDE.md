@@ -38,7 +38,35 @@ own, and `ENTRY_CLOSED` ranks second in `EN-8`. Specs amended (`EN-1`, `EN-8`,
 `docs/decisions/0003-oxygen-tick-derived-tau-and-round-timings.md`.
 126 tests, 100% coverage on `packages/*`; test files are now typechecked too.
 
-The remaining Phase 1.5 tasks (M1.5 risk caps and auto cash-out, M1.6 replay source, M1.7 Monte-Carlo harness, M1.8 PixiJS port) are unstarted. **θ is not yet calibrated** — 0.25 %/s is the spec's opening value and M1.7 sets the real one against RTP 96.5 %.
+M1.5 has begun with the three enforcement gaps a test audit found — criteria
+that were **declared but unenforced**, with green suites because the tests
+asserted what the code did rather than what the criteria said:
+
+- **PL-4's max-win cap** is now clamped at the single float→money conversion in
+  `payoutFor`, so it applies to *every* settlement reason rather than only to an
+  AO-5 auto-surface — a gap tick can cross the cap between two ticks, and RL-4's
+  round-end settlement has no trigger to route through. The bounds
+  (`maxWinMultiple`, `maxWinCents`) live in `EngineConfig` per RK-3. The cap
+  binds on longs only: a short's `M` is bounded above by `1 + L`, so 26 at 25×.
+- **EN-7's idempotency key** is now checked. A replayed `OpenRequest.id` is a
+  no-op returning the existing position, ranked **above every EN-8 rejection** —
+  a retry after a dropped ack is asking "did this land?", not "why can't I open
+  a position?".
+- **RL-1's graph** is now enforced by `setPhase` itself, which accepts only the
+  legal successor; `resetPhase` is the one sanctioned bypass, for boot and tests.
+  Phase entry is not idempotent — entering `settling` twice settled twice.
+
+**CR-6b** was added to the acceptance criteria *before* the auto-order code, so
+the trigger τ is fixed by the criterion rather than by whatever the first
+implementation happened to do. See
+`docs/decisions/0004-max-win-cap-entry-idempotency-and-phase-guard.md`.
+397 tests, 100 % coverage on `packages/*`.
+
+The rest of M1.5 (the auto cash-out / stop-loss triggers themselves, EN-4 range
+validation, the re-entry cooldown) plus M1.6 replay source, M1.7 Monte-Carlo
+harness and M1.8 PixiJS port are unstarted. **θ is not yet calibrated** —
+0.25 %/s is the spec's opening value and M1.7 sets the real one against RTP
+96.5 %.
 
 ### Where things live
 
@@ -77,6 +105,15 @@ Run it with `npm install` then `npm run dev` (Vite, http://localhost:5173). ES m
 - **The crush line has exactly one implementation.** `positionCrushIndex` is what
   the engine tests against *and* what the renderer draws; never recompute it
   client-side. `CR-6` makes a one-tick drift between the two a release blocker.
+- **`setPhase` enforces RL-1; `resetPhase` is the only bypass.** Phase entry runs
+  side effects that are not idempotent (entering `settling` settles every open
+  position), so a new phase-entry effect goes inside `enterPhase` and a new caller
+  uses `setPhase`. Reach for `resetPhase` only where there is genuinely no
+  predecessor phase — boot, and tests that start mid-cycle.
+- **The max-win cap lives at the money conversion, not at the trigger.**
+  `payoutFor` clamps after the single rounding, so every settlement reason is
+  covered by construction. AO-5's auto-surface trigger, when M1.5 adds it, stops a
+  position running past 50× — it is not what enforces the bound.
 - There is deliberately **no `economy/` folder** in Phase 1. It is the intended home for ledger and payout arithmetic when that logic is extracted from `Engine` in Phase 2.
 
 ## Non-negotiable invariants
@@ -135,8 +172,8 @@ crush at the first tick the index reaches the line I_e·(1 − d·(1 − θτ)/L
 2. ~~Port engine math into `/packages/engine` with unit tests against the acceptance criteria~~ — **done (M1.3)**. Tests are named by AC id; `packages/engine/test/purity.test.ts` is the durable guard on the no-DOM/no-timer/no-clock/no-RNG rule.
 3. ~~Add oxygen: `−θτ` in the multiplier, O₂ bar draining on the cash-out button, crush line creeping in the scene.~~ — **done (M1.4)**.
 4. ~~Round 90 s, entry cutoff T−5 s, intermission 8 s.~~ — **done (M1.4)**. The tick loop is written in `CR-1` order with the auto-order slot empty and a test asserting nothing settles from it, so M1.5 fills the slot rather than rewriting the loop.
-5. Auto cash-out (take-profit) + stop-loss, set at entry, triggering the same 500 ms ascent. Also the re-entry cooldown (`reentryCooldownMs` + `COOLING_OFF`) — see ADR 0002 — and the `CR-6` client-line-vs-engine-line assertion.
-6. Max-win auto-surface at 50×.
+5. Auto cash-out (take-profit) + stop-loss, set at entry, triggering the same 500 ms ascent. Also the re-entry cooldown (`reentryCooldownMs` + `COOLING_OFF`) — see ADR 0002 — and the `CR-6` client-line-vs-engine-line assertion. **The τ the triggers are evaluated at is fixed by `CR-6b`, written before the code**; `packages/engine/test/auto-order-tau.test.ts` already asserts what the empty slot must inherit.
+6. Max-win auto-surface at 50×. **The payout cap half is done** (PL-4/AO-5, ADR 0004) — what remains is the *trigger*: the auto-surface that stops a position running once the cap can no longer pay more.
 7. `ReplayIndexSource` that replays recorded real BTC 100 ms data files.
 8. Monte-Carlo harness in `/packages/sim`: calibrate θ to RTP 96.5 % across behavior models; output a report artifact.
 9. Close Calls events in the (still fake) social feed.

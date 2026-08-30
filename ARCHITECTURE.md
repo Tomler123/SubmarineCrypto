@@ -35,6 +35,7 @@ apps/client/src/
     format.js           fmt$, fmtClock
   state/store.js        S — the mutable game state singleton
   feed/                 THE PRICE-FEED SEAM (see below)
+    monotonic.js        IndexSourceBase — subscribers + the FI-8 gate
     SimulatedIndexSource.js
     InterpBuffer.js
     index.js            the `source` and `buffer` singletons
@@ -94,12 +95,34 @@ These four seams are the reason the split exists. Treat them as contracts.
 ### 1. `feed/` — the price-feed boundary (most important)
 
 `SimulatedIndexSource` implements the `IndexSource` contract:
-`onTick(fn) → {t, v, ret}`, `resetRound()`, `halt()`.
+`onTick(fn) → {t, v, ret}`, `resetRound()`, `halt()`, `onAlarm(fn)`.
+
+There is deliberately **no `start()`/`stop()`** (FEED-F5). A source self-starts
+whatever machinery it needs in its constructor and stays dormant until
+`resetRound()` opens a round; `halt()` closes one. `core/round.js` is the only
+caller of either. The pair was named in one stale comment, never implemented and
+never called; it was removed rather than added so that M1.6's second
+implementation is not written against a surface nothing uses.
 
 In Phase 2 a `WsIndexSource` implements the same contract and replaces it in
 `feed/index.js`. **Nothing outside `feed/` may know which source is running.**
 No other module imports `SimulatedIndexSource` directly — they import the
 `source` singleton from `feed/index.js`.
+
+**Every source extends `IndexSourceBase` (`feed/monotonic.js`)**, which owns the
+subscriber list and the single emit path, `_publish`. That path is the FI-8
+gate: a tick whose timestamp is non-finite or not strictly greater than the last
+accepted one is dropped before any subscriber sees it, counted in
+`rejectedTicks`, and reported through `onAlarm`. The gate lives at the seam
+rather than in each implementation on purpose — the simulator is monotonic
+only by accident of `performance.now()`, whereas `ReplayIndexSource` reads
+timestamps out of a file and a `WsIndexSource` reads them off the wire. Because
+`_publish` is the only way out, an implementation cannot opt out of the rule.
+
+The executable definition of all of this is
+`apps/client/test/support/index-source-contract.js`, which every source runs
+through unchanged. Add an implementation, call `describeIndexSourceContract`,
+and it inherits the whole contract.
 
 ### 2. `feed/InterpBuffer.js` — tick layer vs. 60 fps renderer
 
@@ -133,6 +156,20 @@ rendering and DOM code so that migration is a move, not a rewrite.
 > `renderer.js` and `console.js` each carried a second inline copy of the P&L
 > formula for their live readouts; both now call `Engine.pnl`, so a displayed
 > figure cannot drift from the settled one (UI-2) when M1.4 adds `−θτ`.
+
+> **Note on `round.js`'s phase guard — added at M1.5.** `setPhase` now accepts
+> only the current phase's legal successor and returns whether it moved;
+> `resetPhase` is the one sanctioned bypass, for boot and for tests that need to
+> start mid-cycle. The split exists because **phase entry is not idempotent**:
+> entering `settling` calls `Engine.forceSettleAtRoundEnd()`, so an illegal or
+> repeated transition is a double settlement, not a cosmetic state error. Before
+> the guard, RL-1 held only because `roundUpdate` was the sole caller and drove
+> the graph in order — a property of the caller, not of the machine, and one new
+> call site away from paying a position out twice.
+>
+> A new phase-entry side effect therefore goes inside `enterPhase`, and any new
+> caller uses `setPhase`; reach for `resetPhase` only where there genuinely is no
+> predecessor phase.
 
 ### `economy/` — intentionally absent
 
@@ -185,7 +222,7 @@ The side effects that must fire in this relative order, and where they live:
 | 6 | Sheet + scrim listeners | `ui/sheets.js` | 19 |
 | 7 | Limits / reality-check / sound listeners, 1 s session `setInterval` | `ui/responsible.js` | 20 |
 | 8 | `source.onTick(...)` tick wiring | `main.js` | 26 |
-| 9 | Boot: `resize()`, `setStake()`, `setPhase('waiting')`, `rAF(frame)` | `main.js` | 26 |
+| 9 | Boot: `resize()`, `setStake()`, `resetPhase('waiting')`, `rAF(frame)` | `main.js` | 26 |
 
 **Why the feed timer starting (step 7) before the tick subscription (step 26)
 is safe:** `SimulatedIndexSource`'s constructor sets `this.live = false`, and

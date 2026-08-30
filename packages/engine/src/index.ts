@@ -15,9 +15,16 @@
  * how PL-2's "next round boundary only" rule is enforced rather than merely
  * documented.
  *
- * Still to come: risk caps and auto-orders (M1.5). The CR-1 tick order in
- * `onTick` already has the auto-order slot, so M1.5 fills it rather than
- * rewriting the loop.
+ * M1.5 closed two criteria that were declared but unenforced: PL-4's max-win
+ * cap (`min(50 x stake, $10,000)`) is now clamped at the single float->money
+ * conversion, on every settlement reason rather than only on an AO-5
+ * auto-surface; and EN-7's idempotency key is now checked, so a replayed
+ * `OpenRequest.id` is a no-op returning the existing position instead of a
+ * second position and a second debit.
+ *
+ * Still to come: the auto-order triggers themselves (M1.5). The CR-1 tick order
+ * in `onTick` already has the slot, and CR-6b fixes the tau they must be
+ * evaluated at, so M1.5 fills the slot rather than rewriting the loop.
  *
  * Structural rule: this package must remain importable under plain Node with
  * no DOM shim. Adding a dependency on anything in apps/client breaks the
@@ -60,6 +67,7 @@ export {
   crushIndex,
   isCrushed,
   livePnl,
+  maxPayoutFor,
   multiplier,
   oxygenFraction,
   payoutFor,
@@ -68,3 +76,5 @@ export {
   positionMultiplier,
   tauOf,
 } from './position.js';
+
+export type { PayoutBounds } from './position.js';

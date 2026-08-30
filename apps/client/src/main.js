@@ -26,7 +26,7 @@ import { S } from './state/store.js';
 import { source, buffer } from './feed/index.js';
 import { Engine } from './core/engine.js';
 import { botsTick } from './core/bots.js';
-import { setPhase } from './core/round.js';
+import { resetPhase } from './core/round.js';
 import './audio/audio.js';                 // pointerdown unlock listener
 import { resize } from './render/renderer.js';   // resize listener
 import { setStake } from './ui/console.js';      // console listeners
@@ -46,5 +46,8 @@ source.onTick(tk=>{
 
 resize();
 setStake(S.stake);
-setPhase('waiting');
+// RL-1: boot has no predecessor phase, so it seeds the machine explicitly
+// rather than going through the guarded `setPhase`. Every transition after
+// this one comes from `roundUpdate` and must satisfy the graph.
+resetPhase('waiting');
 requestAnimationFrame(frame);

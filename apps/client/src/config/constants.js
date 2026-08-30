@@ -21,6 +21,10 @@ export const CFG = {
   DEPTH_K: 5200,          // metres per natural log unit of I/I0 (presentation only)
   DEPTH_MIN: -500,        // numeric safety clamp only — not a playable boundary
   DEPTH_MAX: 30000,
+  MAX_WIN_MULT: 50,       // max win 50x stake (AO-5, PL-4, parameter sheet §12)
+  MAX_WIN_CENTS: 1000000, // and $10,000 absolute, per position. The payout is
+                          // clamped to min(the two) at settlement — on every
+                          // reason, not only an AO-5 auto-surface.
   LEV: [2,5,10,25],       // ASSUMPTION: discrete leverage set
   STAKES: [100,200,500,1000,2500,5000,10000,25000],
   START_BAL: 100000       // $1,000.00 play money

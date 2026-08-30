@@ -22,7 +22,9 @@ jobs:
       - name: Typecheck (TypeScript strict, all packages)
         run: npm run typecheck
 
-      - name: Test with coverage (80% threshold over packages/*)
+      # Runs both vitest projects: `packages` (gated at 80%) and `client`
+      # (measured, deliberately ungated while M1.8 still owns most of that tree).
+      - name: Test with coverage (80% threshold over packages/* only)
         run: npm run coverage
 
       - name: Build
