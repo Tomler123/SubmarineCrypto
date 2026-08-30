@@ -25,26 +25,28 @@ document.querySelectorAll('.levOpt').forEach(b=>b.addEventListener('click',()=>{
 }));
 export function flashMsg(m){ el.msg.textContent=m;
   clearTimeout(flashMsg._t); flashMsg._t=setTimeout(()=>el.msg.textContent='',2200); }
+function optionalMultiplier(input){
+  const raw=input.value.trim();
+  return raw==='' ? undefined : Number(raw);
+}
 export async function tryOpen(dir){
-  // M1.3: a *live* position blocks re-entry, not a settled one still on screen.
-  // S.pos lingers ~900ms after settlement so the wreck can be drawn; guarding on
-  // its mere existence made the client enforce a rule the engine does not have
-  // (EN-5 permits re-entry once a position settles). An optimistic mirror must
-  // never be stricter than the authority, or Phase 2 reconciliation has nothing
-  // to reconcile to. A deliberate re-entry cooldown is M1.5, as an engine rule.
-  if (S.pos && S.pos.state !== 'done') return;
-  if (S.lossLocked){ flashMsg('LOSS LIMIT REACHED — BETTING LOCKED'); return; }
-  if (S.balance < S.stake){ flashMsg('INSUFFICIENT BALANCE'); return; }
+  // Eligibility and validation are engine decisions. The normal UI disables
+  // impossible actions, but this request path never returns early: doing so
+  // would make the optimistic mirror stricter than the authority and could
+  // mask EN-8's deterministic rejection precedence.
+  const takeProfit=optionalMultiplier(el.takeProfit);
+  const stopLoss=optionalMultiplier(el.stopLoss);
   if (S.phase==='running'){
     // Not re-checked here beyond the disabled button: the Gateway asks EN-1 at
     // ack time and the engine owns the rejection, so a tap that races the cutoff
     // gets the engine's answer rather than a second, differently-timed client
     // opinion. The mirror must never be stricter than the authority (ADR 0002).
-    const r=await Gateway.openPosition({dir, stake:S.stake, lev:S.lev});
+    const r=await Gateway.openPosition({dir, stake:S.stake, lev:S.lev, takeProfit, stopLoss});
     if (!r.ok) flashMsg(r.err);
   } else if (S.phase==='waiting'||S.phase==='launching'){
-    S.armed={dir, stake:S.stake, lev:S.lev};
+    S.armed={dir, stake:S.stake, lev:S.lev, takeProfit, stopLoss};
     el.armedTxt.innerHTML=`${dir>0?'\u25B2':'\u25BC'} ${fmt$(S.stake)} \u00D7${S.lev} — opens at launch`;
+    el.armedTxt.innerHTML+=`${takeProfit===undefined?'':` · TP ${takeProfit.toFixed(2)}×`}${stopLoss===undefined?'':` · SL ${stopLoss.toFixed(2)}×`}`;
     Au.click();
   } else flashMsg('ROUND SETTLING — NEXT DIVE SOON');
 }

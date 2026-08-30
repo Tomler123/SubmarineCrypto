@@ -19,9 +19,10 @@
  * Everything is pure: each entry point takes a state and returns a new one.
  */
 
-import { type Cents, ZERO, addCents, cents, subCents } from '@crush/ledger';
+import { type Cents, ZERO, addCents, cents, isCents, subCents } from '@crush/ledger';
 import { ascentDue, isCrushed, payoutFor, pnlFor, positionMultiplier, tauOf } from './position.js';
 import type {
+  AscentCause,
   EngineConfig,
   EngineResult,
   EngineState,
@@ -54,6 +55,11 @@ export const DEFAULT_CONFIG: EngineConfig = Object.freeze({
   // is the routine dial.
   maxWinMultiple: 50,
   maxWinCents: cents(1_000_000),
+  allowedLeverages: Object.freeze([2, 5, 10, 25]),
+  minStakeCents: cents(50),
+  maxNotionalCents: cents(200_000),
+  maxIndexMovePerTick: 0.0147,
+  reentryCooldownMs: 900,
 });
 
 /** An empty engine state for a player with `balance` cents. */
@@ -75,6 +81,38 @@ function rejected(state: EngineState, code: RejectCode): EngineResult {
   return { state, events: [{ kind: 'open-rejected', code }] };
 }
 
+/** EN-4/AO-3 stage-one validation, in EN-8's fixed order. */
+function validateOpenRequest(req: OpenRequest, config: EngineConfig): RejectCode | null {
+  if (req.dir !== 1 && req.dir !== -1) return 'INVALID_DIRECTION';
+  if (!config.allowedLeverages.includes(req.lev)) return 'INVALID_LEVERAGE';
+  if (!isCents(req.stake) || req.stake < config.minStakeCents) return 'INVALID_STAKE';
+
+  const notional = req.stake * req.lev;
+  if (!Number.isSafeInteger(notional) || notional > config.maxNotionalCents) {
+    return 'NOTIONAL_LIMIT_EXCEEDED';
+  }
+
+  if (req.takeProfit !== undefined) {
+    const minimumTakeProfit = 1 + req.lev * config.maxIndexMovePerTick;
+    if (!Number.isFinite(req.takeProfit) || req.takeProfit <= minimumTakeProfit) {
+      return 'INVALID_TAKE_PROFIT';
+    }
+  }
+  if (
+    req.stopLoss !== undefined
+    && (!Number.isFinite(req.stopLoss) || req.stopLoss <= 0 || req.stopLoss >= 1)
+  ) {
+    return 'INVALID_STOP_LOSS';
+  }
+  return null;
+}
+
+/** EN-10, measured only between authoritative settlement and entry ticks. */
+function isCoolingOff(state: EngineState, tick: Tick | null, config: EngineConfig): boolean {
+  if (tick === null || state.lastResult === null) return false;
+  return tick.t < state.lastResult.tick.t + config.reentryCooldownMs;
+}
+
 /**
  * EN-3: debit the stake atomically with position creation.
  *
@@ -87,15 +125,10 @@ function rejected(state: EngineState, code: RejectCode): EngineResult {
  * uses whatever tick it is handed as `I_e`; enforcing which tick that is
  * belongs to the gateway (today) and the round server (M2.2).
  *
- * Range validation (EN-4: leverage set, minimum stake, `stake × lev ≤ $2,000`)
- * is M1.5 and is deliberately not implemented here.
- *
- * EN-8 fixes the order the checks run in. The principle: **report the condition
- * the player must resolve first, and never let a transient condition mask a
- * persistent one.** Hence loss-lock (session-terminal) before entry-closed
- * (round-terminal, M1.4) before position-open (round-scoped, self-clearing)
- * before balance (actionable) before no-tick (a system condition, not a player
- * one).
+ * EN-8 fixes the order the checks run in: accepted-id replay; request validation
+ * in EN-4/AO-3 order; then loss-lock, entry-closed, position-open, cooldown,
+ * balance and no-price eligibility. No wallet object is constructed until all
+ * checks pass.
  *
  * The loss-lock position is the one that matters. The prototype checked balance
  * first, so a loss-locked player with a small balance was told "INSUFFICIENT
@@ -139,26 +172,36 @@ export function open(
       events: [{ kind: 'position-opened', position: state.position }],
     };
   }
-  // 1. Session-terminal: nothing the player does this round clears it (RP-2).
+  // 1. EN-4/AO-3 request validation. It precedes eligibility and every path
+  // below returns the original state, so malformed input can never touch money.
+  const validationError = validateOpenRequest(req, config);
+  if (validationError !== null) return rejected(state, validationError);
+
+  // 2. Session-terminal: nothing the player does this round clears it (RP-2).
   if (state.lossLocked) {
     return rejected(state, 'LOSS_LIMIT_REACHED');
   }
-  // 2. Round-scoped and unresolvable this round: once the window shuts, nothing
+  // 3. Round-scoped and unresolvable this round: once the window shuts, nothing
   // the player does reopens it (EN-1). Above POSITION_OPEN so a player whose
   // position is still settling as the cutoff passes is told the truth rather
   // than being invited to wait for a window that has already closed.
   if (req.entryOpen === false) {
     return rejected(state, 'ENTRY_CLOSED');
   }
-  // 3. Round-scoped: resolves on its own when the position settles (EN-5).
+  // 4. Round-scoped: resolves on its own when the position settles (EN-5).
   if (state.position !== null && state.position.state !== 'done') {
     return rejected(state, 'POSITION_OPEN');
   }
-  // 4. Actionable by the player.
+  // 5. EN-10: a settled position may be visible or already cleared; lastResult
+  // retains its authoritative tick so neither the UI timer nor a clock decides.
+  if (isCoolingOff(state, tick, config)) {
+    return rejected(state, 'COOLING_OFF');
+  }
+  // 6. Actionable by the player.
   if (state.wallet.balance < req.stake) {
     return rejected(state, 'INSUFFICIENT_BALANCE');
   }
-  // 5. A system condition: no tick means no `I_e`, so there is nothing to price
+  // 7. A system condition: no tick means no `I_e`, so there is nothing to price
   // the entry at. Distinct from MF-1 SIGNAL LOST, which is a round-level abort
   // — this rejects one request and settles nothing. The prototype could not
   // reach this state because it read `S.lastTick`, seeded at boot, and would
@@ -186,6 +229,10 @@ export function open(
     // reach back into a position that is already open, and LG-4's "theta in
     // force" is this number.
     theta: config.thetaPerSecond,
+    ...(req.takeProfit === undefined ? {} : { takeProfit: req.takeProfit }),
+    ...(req.stopLoss === undefined ? {} : { stopLoss: req.stopLoss }),
+    lastMultiplier: 1,
+    ascentCause: null,
     resolveT: 0,
   };
 
@@ -214,10 +261,22 @@ export function requestAscent(
   const p = state.position;
   if (p === null || p.state !== 'open') return unchanged(state);
 
+  return startAscent(state, p, receivedT, 'manual', config);
+}
+
+/** Start the one normal Blow shared by manual, TP, SL and max-win exits. */
+function startAscent(
+  state: EngineState,
+  p: Position,
+  receivedT: number,
+  cause: AscentCause,
+  config: EngineConfig,
+): EngineResult {
   const position: Position = {
     ...p,
     state: 'ascending',
     resolveT: receivedT + config.ascentMs,
+    ascentCause: cause,
   };
   return {
     state: { ...state, position },
@@ -265,6 +324,7 @@ function settle(
     tau,
     tick,
     multiplier: multiplierAtTick,
+    ascentCause: p.ascentCause,
     payout,
     pnl,
   };
@@ -292,8 +352,8 @@ function settle(
  * (invariant 3).
  *
  * Evaluation order is CR-1's: crush check -> auto-order triggers -> pending
- * ascent settlement. The middle slot is empty until M1.5 fills it; the order is
- * written out now because CR-1 makes it a correctness contract, and because
+ * ascent settlement. The order is written out because CR-1 makes it a
+ * correctness contract, and because
  * CR-4 requires that a crush on the same tick as a due ascent takes precedence
  * — which is exactly what checking crush first produces.
  */
@@ -316,7 +376,9 @@ export function onTick(
   //
   // The entry tick itself never reaches here (`open` returns before this tick
   // is replayed), so the first tick a position sees is tick 1 — tau = 0.125 s.
-  const p: Position = { ...prior, ticksElapsed: prior.ticksElapsed + 1 };
+  const tauAdvanced: Position = { ...prior, ticksElapsed: prior.ticksElapsed + 1 };
+  const multiplierAtTick = positionMultiplier(tauAdvanced, tick.v, config.tickSeconds);
+  const p: Position = { ...tauAdvanced, lastMultiplier: multiplierAtTick };
   const advanced: EngineState = { ...state, position: p };
 
   // 1. Crush check (CR-1, CR-4).
@@ -324,11 +386,28 @@ export function onTick(
     return settle(advanced, p, tick, 'crush', config);
   }
 
-  // 2. Auto-order triggers (AO-1…AO-5) — M1.5 fills this slot. Its position
-  // between the crush check and the ascent settlement is fixed by CR-1 and is a
-  // correctness contract, not a style choice: a position past its crush line
-  // must crush rather than take-profit, and a trigger firing on this tick starts
-  // an ascent that settles on a *later* tick (AO-2), never this one.
+  // 2. Auto-order triggers (AO-1…AO-5). TP/SL use consecutive authoritative
+  // multipliers. Their position between crush and settlement is fixed by CR-1
+  // and is a correctness contract, not a style choice: a position past its
+  // crush line must crush rather than take-profit, and a trigger firing on this
+  // tick starts an ascent that settles on a *later* tick (AO-2), never this one.
+  if (p.state === 'open') {
+    const previous = prior.lastMultiplier;
+    const crosses = (threshold: number): boolean => (
+      (previous < threshold && multiplierAtTick >= threshold)
+      || (previous > threshold && multiplierAtTick <= threshold)
+    );
+    // AO-4: SL wins a same-tick conflict. Max-win outranks a redundant TP for
+    // audit attribution, while both take the exact same ascent path.
+    const cause: AscentCause | null = p.stopLoss !== undefined && crosses(p.stopLoss)
+      ? 'stop-loss'
+      : multiplierAtTick >= config.maxWinMultiple
+        ? 'max-win'
+        : p.takeProfit !== undefined && crosses(p.takeProfit)
+          ? 'take-profit'
+          : null;
+    if (cause !== null) return startAscent(advanced, p, tick.t, cause, config);
+  }
 
   // 3. Pending ascent settlement (CO-1).
   if (ascentDue(p, tick)) {

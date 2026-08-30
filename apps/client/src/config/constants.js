@@ -25,6 +25,10 @@ export const CFG = {
   MAX_WIN_CENTS: 1000000, // and $10,000 absolute, per position. The payout is
                           // clamped to min(the two) at settlement — on every
                           // reason, not only an AO-5 auto-surface.
+  MAX_INDEX_MOVE_PER_TICK: 0.0147, // FI-3: 3.5 × v; TP floor input to AO-3
+  MIN_STAKE_CENTS: 50,     // EN-4
+  MAX_NOTIONAL_CENTS: 200000, // EN-4: $2,000 stake × leverage
+  REENTRY_COOLDOWN_MS: 900, // EN-10: settlement tick → candidate entry tick
   LEV: [2,5,10,25],       // ASSUMPTION: discrete leverage set
   STAKES: [100,200,500,1000,2500,5000,10000,25000],
   START_BAL: 100000       // $1,000.00 play money

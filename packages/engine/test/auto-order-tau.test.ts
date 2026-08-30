@@ -8,23 +8,12 @@
  * the same defect class as the CR-6 crush-line drift and carries the same
  * severity: a release blocker."
  *
- * ## Why this file exists before the triggers do
- *
- * The auto-order slot in `onTick` is still empty — M1.5 fills it. Writing the
- * criterion and its test after the code would mean the first implementation
- * chose the τ and the test merely ratified it, which is the failure mode that
- * produced the CR-6 drift risk in the first place.
- *
- * So what is asserted here is the thing the trigger will be built on: that the
+ * These tests assert the foundation of the M1.5 trigger implementation: that the
  * τ visible at the auto-order slot's position in the tick sequence is this
  * tick's τ, not the previous tick's, and that it is the *same* τ the crush check
  * immediately above it and the settlement immediately below it use. The probe
  * is `observedTau` — the τ carried by the position the engine hands forward from
- * a tick — because that object is precisely what a trigger implementation will
- * read.
- *
- * When M1.5 lands the triggers, the assertions below stay valid unchanged and
- * `triggerWouldFireAt` becomes the real predicate rather than a stand-in.
+ * a tick — because that object is precisely what each trigger reads.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -50,7 +39,7 @@ import type {
 
 const I0 = 1000;
 const START_BALANCE = 10_000_000;
-const STAKE = 50_000;
+const STAKE = 5_000;
 const TICK_MS = 125;
 /** 90 s at 8 Hz (RL-2, parameter sheet §12). */
 const ROUND_TICKS = 720;

@@ -27,21 +27,26 @@ const { S } = await import('../src/state/store.js');
 const { CFG } = await import('../src/config/constants.js');
 
 const TICK_MS = CFG.TICK_MS;
+let tickBase = 0;
 
 /** A tick at index `v`, `n` ticks into the round. */
-const tickAt = (n, v) => ({ t: n * TICK_MS, v });
+const tickAt = (n, v) => ({ t: tickBase + n * TICK_MS, v });
 
 /**
  * Open a position through the adapter at index `v`, with the entry window open.
  * Returns the adapter's own result so a rejection can be asserted on.
  */
-function open(v = CFG.IDX0, { dir = 1, stake = 500, lev = 10 } = {}){
-  S.lastTick = tickAt(0, v);
+function open(v = CFG.IDX0, { dir = 1, stake = 500, lev = 10, entryN = 0 } = {}){
+  S.lastTick = tickAt(entryN, v);
   return Engine.open(dir, stake, lev, true);
 }
 
 beforeEach(() => {
   vi.useFakeTimers();
+  // The engine retains the last authoritative settlement for EN-10. Give each
+  // test its own later tick range so test isolation does not look like a
+  // backwards-time entry inside the prior test's cooldown.
+  tickBase += 10_000;
   resetSpies();
   S.lossLocked = false;
   S.lossLimit = 0;
@@ -199,8 +204,8 @@ describe('the 900 ms clearSettled timer', () => {
     expect(S.pos).toBe(null);
 
     // Second cycle.
-    open();
-    settle(2);
+    open(CFG.IDX0, { entryN: 9 });
+    settle(10);
     expect(S.pos.state).toBe('done');
     vi.advanceTimersByTime(900);
     expect(S.pos).toBe(null);
@@ -237,7 +242,7 @@ describe('the 900 ms clearSettled timer', () => {
     vi.advanceTimersByTime(400);   // A's timer fires at 900
     expect(S.pos).toBe(null);
 
-    open(CFG.IDX0, { stake: 200 });
+    open(CFG.IDX0, { stake: 200, entryN: 9 });
     expect(S.pos.state).toBe('open');
     // Well past when A's timer would have fired had it been orphaned.
     vi.advanceTimersByTime(5000);

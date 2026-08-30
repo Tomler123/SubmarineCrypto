@@ -42,7 +42,10 @@ import type { EngineConfig, OpenRequest, Tick } from '../src/index.js';
 
 const I0 = 1000;
 const START_BALANCE = 1_000_000;
-const CONFIG: EngineConfig = DEFAULT_CONFIG;
+const CONFIG: EngineConfig = {
+  ...DEFAULT_CONFIG,
+  maxNotionalCents: cents(Number.MAX_SAFE_INTEGER),
+};
 
 function tick(t: number, v: number): Tick {
   return { t, v };
@@ -221,7 +224,7 @@ describe('EN-7 — the idempotency window is the position lifetime', () => {
     state = onTick(state, tick(CONFIG.ascentMs, I0), CONFIG).state;
     state = clearSettled(state).state;
 
-    const second = open(state, { ...REQ, id: 'req-2' }, tick(1000, I0 * 1.02), CONFIG);
+    const second = open(state, { ...REQ, id: 'req-2' }, tick(1_400, I0 * 1.02), CONFIG);
     expect(second.events.some((e) => e.kind === 'open-rejected')).toBe(false);
     expect(second.state.position?.id).toBe('req-2');
     expect(second.state.position?.entry).toBe(I0 * 1.02);

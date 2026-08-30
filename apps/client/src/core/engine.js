@@ -35,10 +35,9 @@ import {
      3. the 900 ms delay before a settled position leaves the screen, which is
         a presentation choice and therefore does not belong in the engine.
 
-   The `Engine.*` call signatures are unchanged, so gateway.js, round.js,
-   frame.js, renderer.js and console.js are untouched. In Phase 2 this adapter
-   becomes the optimistic mirror and the same @crush/engine package runs on the
-   server as the authority.
+   M1.5 extends only the entry adapter with optional TP/SL values and rejection
+   copy. In Phase 2 this adapter becomes the optimistic mirror and the same
+   @crush/engine package runs on the server as the authority.
 ================================================================ */
 
 /** Authoritative engine state. `S` is a derived view of it, never the source. */
@@ -62,6 +61,11 @@ function configFromSettings(){
     // audit-logged (RK-3) and, like theta, must not move mid-round.
     maxWinMultiple: CFG.MAX_WIN_MULT,
     maxWinCents: CFG.MAX_WIN_CENTS,
+    allowedLeverages: CFG.LEV,
+    minStakeCents: CFG.MIN_STAKE_CENTS,
+    maxNotionalCents: CFG.MAX_NOTIONAL_CENTS,
+    maxIndexMovePerTick: CFG.MAX_INDEX_MOVE_PER_TICK,
+    reentryCooldownMs: CFG.REENTRY_COOLDOWN_MS,
   };
 }
 let roundConfig = configFromSettings();
@@ -166,14 +170,22 @@ export const Engine = {
   /** Oxygen remaining in [0,1] for the O2 bar on the cash-out button (UI-4). */
   oxygen(p){ return oxygenFraction(p, roundConfig.tickSeconds); },
 
-  open(dir, stake, lev, entryOpen){
+  open(dir, stake, lev, entryOpen, takeProfit, stopLoss){
     // The client mirrors the loss lock into the engine before every entry, so
     // the engine's own RP-2 rejection stays the single decision point.
     state = setLossLocked(state, S.lossLocked);
     nextPositionId += 1;
     const result = apply(engineOpen(
       state,
-      { dir, stake, lev, id: `p${nextPositionId}`, entryOpen },
+      {
+        dir,
+        stake,
+        lev,
+        id: `p${nextPositionId}`,
+        entryOpen,
+        ...(takeProfit === undefined ? {} : { takeProfit }),
+        ...(stopLoss === undefined ? {} : { stopLoss }),
+      },
       S.lastTick,
       roundConfig,
     ));
@@ -198,7 +210,14 @@ export const Engine = {
  * backstop and, per that test, must never actually be reachable.
  */
 export const REJECT_COPY = {
+  INVALID_DIRECTION: 'INVALID DIRECTION',
+  INVALID_LEVERAGE: 'INVALID LEVERAGE',
+  INVALID_STAKE: 'STAKE MUST BE AT LEAST $0.50',
+  NOTIONAL_LIMIT_EXCEEDED: 'BALLAST LIMIT — MAX $2,000 NOTIONAL',
+  INVALID_TAKE_PROFIT: 'TAKE-PROFIT TOO CLOSE',
+  INVALID_STOP_LOSS: 'STOP-LOSS MUST BE BETWEEN 0× AND 1×',
   POSITION_OPEN: 'POSITION OPEN',
+  COOLING_OFF: 'POD CYCLING — STAND BY',
   INSUFFICIENT_BALANCE: 'INSUFFICIENT BALANCE',
   LOSS_LIMIT_REACHED: 'LOSS LIMIT REACHED',
   // Deliberately NOT MF-1's "SIGNAL LOST". That is a round-level abort —

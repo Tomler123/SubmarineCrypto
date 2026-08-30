@@ -23,7 +23,7 @@ import {
   crushIndex,
   initialState,
   onTick,
-  open,
+  open as engineOpen,
   requestAscent,
   setLossLocked,
   settleAtRoundEnd,
@@ -40,6 +40,14 @@ import type {
 const I0 = 1000;
 const START_BALANCE = 100_000; // $1,000.00
 const STAKE = 50_000; // $500.00
+
+/** Isolate non-EN-4 adversarial math from the production notional gate. */
+const open: typeof engineOpen = (state, req, at, config = DEFAULT_CONFIG) => engineOpen(
+  state,
+  req,
+  at,
+  { ...config, maxNotionalCents: cents(Number.MAX_SAFE_INTEGER) },
+);
 
 /** The v1 leverage set (EN-4, parameter sheet §12). */
 const LEVERAGES: readonly Leverage[] = [2, 5, 10, 25];
@@ -569,16 +577,17 @@ describe('CR-5 / PL-5 — a gap tick far past the crush line', () => {
     }
   });
 
-  it('CR-1: an extreme gap on the WINNING side does not crush and does not settle', () => {
+  it('AO-5: an extreme winning gap starts max-win ascent without immediate settlement', () => {
     // The mirror of CR-5, and the reason the gap lists above are per-direction:
     // a Surface at v = MAX_SAFE_INTEGER has gapped enormously in its favour, so
-    // there is nothing to settle. Asserted explicitly because it is the case
-    // that makes the max-win behaviour below reachable at all.
+    // it must enter the normal 500 ms ascent instead of settling on this tick.
     const s = opened(fresh(), 1, 25, tick(0, I0));
     const r = onTick(s, tick(125, Number.MAX_SAFE_INTEGER));
-    expect(r.events).toEqual([]);
-    expect(r.state.position?.state).toBe('open');
+    expect(kinds(r.events)).toEqual(['ascent-started']);
+    expect(r.state.position?.state).toBe('ascending');
+    expect(r.state.position?.ascentCause).toBe('max-win');
     expect(r.state.position?.result).toBeUndefined();
+    expect(r.state.lastResult).toBeNull();
   });
 
   /**
@@ -794,6 +803,7 @@ describe('EN-8 — rejection precedence across the full condition lattice', () =
     'LOSS_LIMIT_REACHED',
     'ENTRY_CLOSED',
     'POSITION_OPEN',
+    'COOLING_OFF',
     'INSUFFICIENT_BALANCE',
     'NO_PRICE',
   ] as const;
@@ -813,12 +823,26 @@ describe('EN-8 — rejection precedence across the full condition lattice', () =
     const holds = new Set<Condition>(conditions);
     // A big balance so the entry is affordable unless we deliberately starve it.
     let state = fresh(holds.has('INSUFFICIENT_BALANCE') ? STAKE - 1 : START_BALANCE * 10);
+    if (holds.has('COOLING_OFF')) {
+      const prior = open(
+        fresh(START_BALANCE),
+        { dir: 1, stake: cents(50), lev: 10, id: 'prior' },
+        tick(0, I0),
+      ).state;
+      const settled = settleAtRoundEnd(prior, tick(100, I0)).state;
+      // Keep the scenario's wallet controls; only the authoritative prior
+      // settlement is needed to hold COOLING_OFF.
+      state = { ...state, lastResult: settled.lastResult };
+    }
     if (holds.has('POSITION_OPEN')) {
-      // Open with a 1-cent stake so the balance condition stays under our
-      // control rather than being a side effect of the debit.
-      const r = open(state, { dir: 1, stake: cents(1), lev: 10, id: 'held' }, tick(0, I0));
-      expect(kinds(r.events), 'setup: holding position must open').toContain('position-opened');
-      state = r.state;
+      // Graft a valid live position so POSITION_OPEN can be tested together
+      // with the otherwise mutually exclusive post-settlement cooldown state.
+      const live = open(
+        fresh(START_BALANCE),
+        { dir: 1, stake: cents(50), lev: 10, id: 'held' },
+        tick(0, I0),
+      ).state.position;
+      state = { ...state, position: live };
       expect(state.position?.state).toBe('open');
     }
     if (holds.has('LOSS_LIMIT_REACHED')) {
@@ -826,7 +850,7 @@ describe('EN-8 — rejection precedence across the full condition lattice', () =
     }
     return {
       state,
-      at: holds.has('NO_PRICE') ? null : tick(125, I0),
+      at: holds.has('NO_PRICE') ? null : tick(holds.has('COOLING_OFF') ? 125 : 1_025, I0),
       entryOpen: !holds.has('ENTRY_CLOSED'),
     };
   }
@@ -842,7 +866,11 @@ describe('EN-8 — rejection precedence across the full condition lattice', () =
     for (let i = 0; i < RANKS.length; i++) {
       const rank = RANKS[i] as Condition;
       for (const held of subsets(RANKS.slice(i + 1) as readonly Condition[])) {
-        out.push({ rank, conditions: [rank, ...held] });
+        const conditions = [rank, ...held];
+        // NO_PRICE has no candidate authoritative timestamp, so EN-10 cannot
+        // simultaneously determine that timestamp is inside cooldown.
+        if (conditions.includes('COOLING_OFF') && conditions.includes('NO_PRICE')) continue;
+        out.push({ rank, conditions });
       }
     }
     return out;
@@ -857,8 +885,8 @@ describe('EN-8 — rejection precedence across the full condition lattice', () =
         { kind: 'open-rejected', code: rank },
       ]);
     }
-    // 16 + 8 + 4 + 2 + 1 = 31 combinations, i.e. the full lattice, not 4 pairs.
-    expect(cells.length).toBe(31);
+    // 47 reachable combinations across six ranks, not merely adjacent pairs.
+    expect(cells.length).toBe(47);
   });
 
   it('EN-8: every rejection in the lattice leaves the wallet byte-identical', () => {
@@ -901,14 +929,14 @@ describe('EN-8 — rejection precedence across the full condition lattice', () =
     expect(kinds(r.events)).toEqual(['position-opened', 'wallet-changed']);
   });
 
-  it('EN-8: a settled-but-uncleared position does NOT hold the POSITION_OPEN rank', () => {
+  it('EN-8/EN-10: a settled-but-uncleared position does not block entry after cooldown', () => {
     // EN-5's "resolves on its own" — the guard is `state !== done`, so a done
-    // position awaiting clearSettled must not block the next entry. If it did,
-    // the 900 ms settle-card delay would eat a player's re-entry window.
+    // position awaiting clearSettled must not block the next entry once the
+    // authoritative 900 ms cooldown has elapsed.
     let s = opened(fresh(), 1, 10, tick(0, I0));
     s = onTick(s, tick(125, 500)).state; // crushed, still present as `done`
     expect(s.position?.state).toBe('done');
-    const r = open(s, { dir: 1, stake: cents(1_000), lev: 10, id: 'p2' }, tick(250, I0));
+    const r = open(s, { dir: 1, stake: cents(1_000), lev: 10, id: 'p2' }, tick(1_025, I0));
     expect(kinds(r.events)).toEqual(['position-opened', 'wallet-changed']);
   });
 });

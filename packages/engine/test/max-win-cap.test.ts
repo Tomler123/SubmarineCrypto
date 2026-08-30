@@ -48,7 +48,10 @@ const I0 = 1000;
 const START_BALANCE = 100_000_000;
 const LEVERAGES: readonly Leverage[] = [2, 5, 10, 25];
 const DIRECTIONS: readonly Direction[] = [1, -1];
-const CONFIG: EngineConfig = DEFAULT_CONFIG;
+const CONFIG: EngineConfig = {
+  ...DEFAULT_CONFIG,
+  maxNotionalCents: cents(Number.MAX_SAFE_INTEGER),
+};
 
 function tick(t: number, v: number): Tick {
   return { t, v };

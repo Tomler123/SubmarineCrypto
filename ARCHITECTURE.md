@@ -72,7 +72,7 @@ them.
 | Package | Populated by | Holds |
 |---|---|---|
 | `@crush/ledger` | **live now** | branded `Cents`, round-half-away-from-zero, arithmetic guards |
-| `@crush/engine` | **live at M1.3** → M1.5 | position math, settlement, crush; oxygen and risk caps still to come |
+| `@crush/engine` | **live through M1.5** | pure position lifecycle, oxygen, crush, settlement, entry validation/cooldown, TP/SL/max-win triggers and payout caps |
 | `@crush/feed` | M1.6 | `IndexSource` contract, simulated / replay / ws sources, `InterpBuffer` |
 | `@crush/gateway` | M2.2 | request/ack seam, optimistic mirror |
 | `@crush/sim` | M1.7 | Monte-Carlo RTP harness, behaviour models |
@@ -149,9 +149,10 @@ rendering and DOM code so that migration is a move, not a rewrite.
 > `apps/client/src/core/engine.js` is an *adapter*: it holds the engine state,
 > mirrors it into `S` so the renderer and console read it unchanged, translates
 > events into the `FX` / `Au` / `feedMsg` / `toast` / `checkLossLimit` calls the
-> prototype made inline, and owns the 900 ms delay before a settled position
-> leaves the screen. The `Engine.*` signatures did not change, so `gateway.js`,
-> `round.js` and `frame.js` were untouched.
+> prototype made inline, and owns the 900 ms presentation delay before a settled
+> position leaves the screen. M1.5 extended the adapter and `gateway.js` only to
+> carry optional TP/SL parameters and rejection copy; all validation, cooldown,
+> trigger and money decisions remain in `@crush/engine`.
 >
 > `renderer.js` and `console.js` each carried a second inline copy of the P&L
 > formula for their live readouts; both now call `Engine.pnl`, so a displayed
@@ -170,14 +171,21 @@ rendering and DOM code so that migration is a move, not a rewrite.
 > A new phase-entry side effect therefore goes inside `enterPhase`, and any new
 > caller uses `setPhase`; reach for `resetPhase` only where there genuinely is no
 > predecessor phase.
+>
+> **Note on the M1.5 tick slot.** `@crush/engine.onTick` advances τ once, checks
+> crush, evaluates auto-orders, then settles a due ascent. TP/SL compare retained
+> consecutive authoritative multipliers, max-win checks the current multiplier,
+> and every trigger starts the ordinary 500 ms ascent. The client never evaluates
+> a trigger or cooldown and therefore cannot become stricter than the authority.
 
 ### `economy/` — intentionally absent
 
-There is no `economy/` folder in Phase 1. All money arithmetic currently lives
-inside `Engine.pnl` / `Engine.settle` / `syncConsole`, and `fmt$` / `fmtClock`
-live in `util/format.js`. `economy/` is the intended home for **ledger and
-payout arithmetic** when that logic is extracted from `Engine` in Phase 2 —
-integer-minor-unit wallet types and double-entry helpers per `CLAUDE.md`.
+There is no client `economy/` folder. Integer-minor-unit primitives live in
+`@crush/ledger`; wallet mutation, payout arithmetic and caps live in the pure
+`@crush/engine`. `syncConsole` only renders those results, while `fmt$` /
+`fmtClock` remain presentation helpers in `util/format.js`. A durable Phase 2
+double-entry ledger is still future work, but it extends this package boundary
+rather than extracting money math from the client.
 
 ---
 

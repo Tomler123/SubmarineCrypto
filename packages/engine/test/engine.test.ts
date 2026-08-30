@@ -6,7 +6,7 @@ import {
   crushIndex,
   initialState,
   onTick,
-  open,
+  open as engineOpen,
   requestAscent,
   setLossLocked,
   settleAtRoundEnd,
@@ -15,6 +15,14 @@ import type { Direction, EngineEvent, EngineState, Leverage, Tick } from '../src
 
 const I0 = 1000;
 const START_BALANCE = 100_000; // $1,000.00, the prototype's play-money float
+
+/** Non-EN-4 tests retain their historical high stakes under an explicit test cap. */
+const open: typeof engineOpen = (state, req, at, config = DEFAULT_CONFIG) => engineOpen(
+  state,
+  req,
+  at,
+  { ...config, maxNotionalCents: cents(Number.MAX_SAFE_INTEGER) },
+);
 
 function tick(t: number, v: number): Tick {
   return { t, v };
@@ -90,7 +98,7 @@ describe('EN-5 — one open position per player per round', () => {
   it('EN-5: re-entry after settlement in the same round is allowed', () => {
     let s = opened(fresh(), 1, 50_000, 10, tick(0, I0));
     s = settleAtRoundEnd(s, tick(125, I0)).state;
-    const r = open(s, { dir: -1, stake: cents(10_000), lev: 2, id: 'p2' }, tick(250, I0));
+    const r = open(s, { dir: -1, stake: cents(10_000), lev: 2, id: 'p2' }, tick(1_025, I0));
     expect(kinds(r.events)).toContain('position-opened');
     expect(r.state.position?.id).toBe('p2');
   });
@@ -354,7 +362,8 @@ describe('LG-1 — wallet arithmetic stays balanced and integral', () => {
     let s = opened(fresh(), 1, 50_000, 10, tick(0, I0));
     s = settleAtRoundEnd(s, tick(125, I0)).state;
     s = clearSettled(s).state;
-    s = opened(s, -1, 10_000, 2, tick(250, I0));
+    // Equality at the authoritative 900 ms cooldown boundary is accepted.
+    s = opened(s, -1, 10_000, 2, tick(1_025, I0));
     expect(s.wallet.wagered).toBe(60_000);
   });
 
@@ -571,10 +580,9 @@ describe('CR-1 — per-tick evaluation order: crush → auto-orders → ascent',
     expect(s.position?.ticksElapsed).toBe(0);
   });
 
-  it('CR-1: the auto-order slot is empty in M1.4 — no trigger fires between them', () => {
+  it('CR-1/AO-4: without configured auto-orders, the trigger slot is a no-op', () => {
     // A position that neither crushes nor is due to settle passes straight
-    // through. M1.5 fills the middle slot; until it does, nothing may settle
-    // from it, which is what makes this milestone's ordering claim testable.
+    // through when no TP/SL threshold is configured and max-win is not reached.
     // All well inside the survival band for a 10x Surface (line near 900) and
     // with no ascent pending, so neither slot 1 nor slot 3 can fire. Anything
     // that settled here could only have come from slot 2.

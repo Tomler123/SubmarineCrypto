@@ -31,6 +31,9 @@ export interface Tick {
 /** Lifecycle of a single position. */
 export type PositionState = 'open' | 'ascending' | 'done';
 
+/** What initiated the one irrevocable ascent attached to a position. */
+export type AscentCause = 'manual' | 'take-profit' | 'stop-loss' | 'max-win';
+
 /** Why a position stopped existing. */
 export type SettlementReason =
   /** The index reached the crush line at a tick — CR-1. Payout is exactly zero. */
@@ -76,6 +79,13 @@ export interface Position {
    * with the settlement record, and this is the value that gets retained.
    */
   readonly theta: number;
+  /** Optional v1 auto orders, validated once and snapshotted at entry (AO-1). */
+  readonly takeProfit?: number;
+  readonly stopLoss?: number;
+  /** Multiplier at the most recently processed authoritative tick (AO-4). */
+  readonly lastMultiplier: number;
+  /** Null until the position starts its single irrevocable ascent. */
+  readonly ascentCause: AscentCause | null;
   /**
    * Earliest settlement time for an ascent: `t_r + ASCENT_MS` (CO-1).
    * Zero while the position is `open`.
@@ -114,6 +124,8 @@ export interface Settlement {
   readonly tick: Tick;
   /** `M_settle`, unclamped, for display and audit (LG-4). */
   readonly multiplier: number;
+  /** What initiated the ascent, or null for crush / round-end from an open state. */
+  readonly ascentCause: AscentCause | null;
   /** `stake × max(0, M)`, rounded once, half away from zero. Never negative (PL-5). */
   readonly payout: Cents;
   /** `payout − stake`. Never worse than `−stake` (PL-5). */
@@ -182,6 +194,16 @@ export interface EngineConfig {
    * amount, which would put a float on the clamp side of the money path.
    */
   readonly maxWinCents: Cents;
+  /** Runtime EN-4 leverage allow-list. */
+  readonly allowedLeverages: readonly Leverage[];
+  /** Smallest accepted stake, in integer minor units (EN-4). */
+  readonly minStakeCents: Cents;
+  /** Largest `stake × leverage` accepted for one position (EN-4). */
+  readonly maxNotionalCents: Cents;
+  /** FI-3's maximum one-tick index move, 0.0147 in v1 (AO-3). */
+  readonly maxIndexMovePerTick: number;
+  /** Authoritative-tick re-entry delay after settlement (EN-10). */
+  readonly reentryCooldownMs: number;
 }
 
 /** A request to open a position, as it arrives from the `Gateway` (invariant 5). */
@@ -191,6 +213,10 @@ export interface OpenRequest {
   readonly lev: Leverage;
   /** Client-generated idempotency id (EN-7); also becomes the position id. */
   readonly id: string;
+  /** Optional immutable take-profit multiplier (AO-1/AO-3). */
+  readonly takeProfit?: number;
+  /** Optional immutable stop-loss multiplier (AO-1/AO-3). */
+  readonly stopLoss?: number;
   /**
    * Whether the round's entry window is open at server receipt (EN-1): `running`
    * and not yet past T−5 s.
@@ -213,7 +239,14 @@ export interface OpenRequest {
  * maps these to copy; the back office counts them (BO-2).
  */
 export type RejectCode =
-  /** Session-terminal: the player's loss limit is reached (RP-2). */
+  /** Stage 1: deterministic request validation (EN-4/AO-3). */
+  | 'INVALID_DIRECTION'
+  | 'INVALID_LEVERAGE'
+  | 'INVALID_STAKE'
+  | 'NOTIONAL_LIMIT_EXCEEDED'
+  | 'INVALID_TAKE_PROFIT'
+  | 'INVALID_STOP_LOSS'
+  /** Stage 2: session-terminal; the player's loss limit is reached (RP-2). */
   | 'LOSS_LIMIT_REACHED'
   /**
    * Round-scoped: the request arrived after the T−5 s entry cutoff, or outside
@@ -228,6 +261,8 @@ export type RejectCode =
   | 'ENTRY_CLOSED'
   /** Round-scoped: a live position already exists (EN-5). */
   | 'POSITION_OPEN'
+  /** A prior settlement is still inside the authoritative-tick cooldown (EN-10). */
+  | 'COOLING_OFF'
   /** Actionable: the stake exceeds the wallet. */
   | 'INSUFFICIENT_BALANCE'
   /**

@@ -36,7 +36,7 @@ import {
   initialState,
   multiplier,
   onTick,
-  open,
+  open as engineOpen,
   payoutFor,
   positionMultiplier,
   requestAscent,
@@ -48,6 +48,14 @@ const I0 = 1000;
 const START_BALANCE = 10_000_000; // $100,000 — deep enough that PL-5 is tested, not the balance guard.
 const STAKE_MIN = 50;
 const STAKE_MAX = 250_000;
+
+/** These money-path properties intentionally range beyond the v1 entry cap. */
+const open: typeof engineOpen = (state, req, at, config = DEFAULT_CONFIG) => engineOpen(
+  state,
+  req,
+  at,
+  { ...config, maxNotionalCents: cents(Number.MAX_SAFE_INTEGER) },
+);
 
 /** The v1 leverage set (EN-4, parameter sheet §12). */
 const LEVERAGES: readonly Leverage[] = [2, 5, 10, 25];

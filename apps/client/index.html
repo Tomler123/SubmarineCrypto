@@ -67,6 +67,11 @@
         </div>
         <button id="mathBtn" aria-label="Payout math">i</button>
       </div>
+      <div class="crow autoOrders" aria-label="Auto orders">
+        <div class="eyebrow">AUTO</div>
+        <label>TP <input id="takeProfitIn" type="number" inputmode="decimal" step="0.01" placeholder="OFF" aria-label="Take-profit multiplier"></label>
+        <label>SL <input id="stopLossIn" type="number" inputmode="decimal" step="0.01" placeholder="OFF" aria-label="Stop-loss multiplier"></label>
+      </div>
       <div class="actions">
         <button class="dirBtn" id="btnSurface">SURFACE &#9650;<small>PROFIT IF INDEX RISES</small></button>
         <button class="dirBtn" id="btnDive">DIVE &#9660;<small>PROFIT IF INDEX FALLS</small></button>

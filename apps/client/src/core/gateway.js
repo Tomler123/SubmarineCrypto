@@ -14,7 +14,14 @@ export const Gateway = {
     // lands at T−4.92s is late, and must be late here exactly as it would be at
     // M2.2 — otherwise the client accepts entries the server will reject and
     // the optimistic mirror has nothing to reconcile to.
-    return Engine.open(req.dir, req.stake, req.lev, entryOpen());
+    return Engine.open(
+      req.dir,
+      req.stake,
+      req.lev,
+      entryOpen(),
+      req.takeProfit,
+      req.stopLoss,
+    );
   },
   async cashOut(){ await wait(60); Engine.requestAscent(); }
 };

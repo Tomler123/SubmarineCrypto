@@ -43,9 +43,12 @@ function declaredRejectCodes(){
   const src = readFileSync(TYPES_TS, 'utf8');
   const start = src.indexOf('export type RejectCode =');
   if (start === -1) throw new Error('RejectCode declaration not found in types.ts');
-  const end = src.indexOf(';', start);
+  // Strip comments before locating the terminator: documentation may itself
+  // contain semicolons, and that must not truncate the union being audited.
+  const declaration = src.slice(start).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  const end = declaration.indexOf(';');
   if (end === -1) throw new Error('RejectCode declaration is unterminated');
-  const body = src.slice(start, end);
+  const body = declaration.slice(0, end);
   const codes = [...body.matchAll(/'([A-Z_]+)'/g)].map(m => m[1]);
   if (codes.length === 0) throw new Error('RejectCode declaration parsed to zero members');
   return codes;

@@ -19,12 +19,15 @@ const IDS = [
   'idxVal', 'idxSub', 'zoneName', 'roundTimer', 'balance', 'stakeVal',
   'betPanel', 'armedPanel', 'cashPanel', 'armedTxt', 'cashAmt', 'cashMult',
   'cashLabel', 'btnCash', 'piLeft', 'o2Fill', 'hatchMsg', 'piRight',
-  'consoleMsg', 'btnSurface', 'btnDive', 'sessionClock',
+  'consoleMsg', 'btnSurface', 'btnDive', 'sessionClock', 'stakeDown', 'stakeUp',
+  'armedCancel',
   'setLimitBtn', 'lossLimitIn', 'limitNote', 'lsTime', 'lsWagered', 'lsNet',
   'rcContinue', 'rcLimits', 'rcModal', 'rcTime', 'rcWagered', 'rcNet',
   'limitsSheet',
 ];
 
 export function installDom(){
-  document.body.innerHTML = IDS.map(id => `<div id="${id}"></div>`).join('');
+  document.body.innerHTML = IDS.map(id => `<div id="${id}"></div>`).join('')
+    + '<input id="takeProfitIn" type="number">'
+    + '<input id="stopLossIn" type="number">';
 }

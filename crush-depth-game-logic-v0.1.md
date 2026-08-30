@@ -80,6 +80,18 @@ A position = (direction, stake, leverage), opened at any time in the entry windo
 - **Stakes:** min $0.50, default $5, per-position max set by notional cap: `stake × leverage ≤ $2,000` in v1 (so $200 max at 10×, $80 at 25×). Raise with bankroll.
 - **Execution rule (fairness-critical):** an entry executes at the **first server tick after the server receives the request** — never a tick the player already saw. Entry index `I_e` = that tick. Combined with the 150 ms client buffer, nobody can trade against known prices.
 - If the round ends before the entry executes: full refund.
+- **Runtime validation (v0.4 amendment):** after an accepted-id replay check and
+  before any wallet mutation, validate in this exact order:
+  `INVALID_DIRECTION` → `INVALID_LEVERAGE` → `INVALID_STAKE` →
+  `NOTIONAL_LIMIT_EXCEEDED` → `INVALID_TAKE_PROFIT` →
+  `INVALID_STOP_LOSS`. Eligibility then runs in this order:
+  `LOSS_LIMIT_REACHED` → `ENTRY_CLOSED` → `POSITION_OPEN` → `COOLING_OFF` →
+  `INSUFFICIENT_BALANCE` → `NO_PRICE`. An accepted id replay returns its
+  original position before either stage; it is not revalidated or re-debited.
+- **Re-entry cooldown:** after any settlement, reject a new entry as
+  `COOLING_OFF` until 900 ms have elapsed between the settlement tick timestamp
+  and the candidate entry tick timestamp. Equality is accepted. No wall clock,
+  render frame or client timer participates.
 
 ---
 
@@ -179,7 +191,22 @@ same class of mismatch at a scale players can see. See `CR-6`.
 2. Position enters **ascending**; it settles at the **first tick t ≥ t_r + 500 ms**, at that tick's `M_t`.
 3. During the ascent: oxygen keeps draining, the index keeps moving, and **crush still applies**. You can die mid-escape.
 4. Ascent is irrevocable (no cancel — anti-abuse).
-5. Auto cash-out: player may set a take-profit multiplier and/or stop-loss multiplier at entry. Server-side triggers; the trigger fires the same 500 ms ascent (auto orders get no speed advantage over a human tap). This is table stakes — every crash player expects it, and it's the mobile-friendly way to play.
+5. Auto cash-out: player may set a take-profit multiplier and/or stop-loss
+   multiplier at entry. They are immutable snapshots on the position and are
+   validated before debit: `TP > 1 + L·0.0147`; `0 < SL < 1`; both finite.
+6. TP/SL are **threshold crossings between consecutive authoritative tick
+   multipliers**, not rendered-frame level checks. Threshold `x` qualifies iff
+   `(M_prev < x && M_now >= x) || (M_prev > x && M_now <= x)`. Starting exactly
+   at a threshold does not retrigger it. If TP and SL both qualify on one tick,
+   stop-loss has precedence.
+7. The 50× max-win trigger is a current authoritative multiplier level check,
+   so a gap landing beyond 50× cannot miss it. It remains separate from the
+   unconditional payout clamp in §5.
+8. Every automatic trigger enters the same 500 ms ascent as a human request;
+   none settles immediately. Per authoritative tick the fixed order is:
+   advance τ once → crush → auto-order triggers → due ascent settlement. Crush
+   therefore wins every same-tick conflict, and ascending/done positions never
+   retrigger.
 
 Why the delay survives every review: it deletes the entire latency-arbitrage class. A player with a 10 ms colo feed and a player on hotel Wi-Fi face the same 500 ms of open market risk. Publish this rationale; it converts a "weird lag" complaint into a fairness feature.
 
@@ -269,7 +296,7 @@ Position it as "the first market-driven crash game," not "the first crypto price
 
 1. ~~Add oxygen: `M_t` gains the `−θτ` term; O₂ bar drains on the cash-out button; crush line creeps.~~ **Done (M1.4).**
 2. ~~Round length 90 s, entry cutoff T−5 s, intermission 8 s.~~ **Done (M1.4).**
-3. Auto cash-out / stop-loss inputs (collapsed row under leverage).
+3. ~~Auto cash-out / stop-loss inputs (collapsed row under leverage), runtime
+   validation, cooldown and max-win auto-surface.~~ **Done (M1.5).**
 4. Close Calls in the fake feed.
-5. Max-win auto-surface.
-6. Sim source gains a replay mode fed by recorded real BTC 100 ms data (best possible pre-phase-2 test harness).
+5. Sim source gains a replay mode fed by recorded real BTC 100 ms data (best possible pre-phase-2 test harness).

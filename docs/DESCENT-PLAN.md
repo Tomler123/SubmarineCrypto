@@ -1,6 +1,6 @@
 # Crush Depth — The Descent Plan
 
-**Rev. 3 · 2026-08-30 · repository state `12d2819`**
+**Rev. 4 · 2026-08-30 · M1.5 completion state**
 
 > This is the portable, plain-text mirror of the delivery-plan artifact. It is
 > the version to paste into any tool that cannot open a `claude.ai` link.
@@ -22,29 +22,31 @@ client code.
 | | |
 |---|---|
 | Phase complete | **1.0** — prototype, module split |
-| Phase in progress | **1.5** — 5 of 10 tasks done |
-| Source files | **36** — 2,875 lines, `packages/*` TypeScript strict |
-| Tests | **398 green** across 23 files; 100% coverage on `packages/*` |
+| Phase in progress | **1.5** — 6 of 10 tasks done; M1.5 exit gate complete |
+| Engine | Pure, immutable TypeScript; entry validation, cooldown, auto-orders and caps live |
+| Tests | **438 green** across 27 files; 100% line/function/branch coverage on `packages/*` |
 | Spec documents | **2 of 2** — 82 acceptance ids across 14 categories |
-| Working tree | clean at `12d2819` |
+| Next milestone | **M1.6** — `ReplayIndexSource` + recorded BTC data |
 
 ---
 
-## What changed since Rev. 2
+## What changed since Rev. 3
 
-Rev. 2 was written at `b3a3699`, when the tree was untested ES modules with no
-build. Four milestones have landed since, and **all five gaps Rev. 2 named are
-now closed**:
+Rev. 4 closes M1.5's remaining declared-but-unenforced behavior:
 
-| Rev. 2 gap | Status |
-|---|---|
-| Oxygen absent — no house edge at all | **Closed (M1.4)** — `M_t` carries `−θ·τ`, θ from `EngineConfig`, snapshotted at entry |
-| Round timings wrong (75 s / 5 s, no cutoff) | **Closed (M1.4)** — 90 s round, 8 s intermission, T−5 s cutoff via `OpenRequest.entryOpen` |
-| Risk caps unenforced | **Partly closed (M1.5)** — max-win cap clamped in `payoutFor`; `EN-4` range validation still open |
-| Engine coupled to DOM (5 imports + `setTimeout`) | **Closed (M1.3)** — pure `packages/engine`, event-list seam, `purity.test.ts` guards it |
-| Money not integer-cent-safe (`Math.round` half-up) | **Closed (M1.3)** — `Cents` branded type, round-half-away-from-zero applied once at settlement |
+- optional TP/SL are validated and snapshotted at entry;
+- TP/SL use consecutive-authoritative-tick crossings, with stop-loss winning a
+  same-tick tie;
+- TP, SL and the 50× max-win level trigger all start the normal 500 ms ascent in
+  the fixed crush-first tick slot;
+- entry validation and eligibility have explicit rejection codes and a fully
+  documented order, with EN-7 accepted-id replay above both;
+- re-entry cooldown is 900 ms of authoritative tick timestamps, with equality
+  accepted;
+- the Gateway/UI carries the values and engine rejection copy without duplicating
+  stricter client-side rules.
 
-Four architecture decisions are recorded in `docs/decisions/`:
+Five architecture decisions are recorded in `docs/decisions/`:
 
 - **0001** — monorepo layout and toolchain
 - **0002** — pure engine and the event seam; also settles crush-line authority
@@ -52,6 +54,7 @@ Four architecture decisions are recorded in `docs/decisions/`:
   that a client mirror may never be stricter than the engine
 - **0003** — oxygen, tick-derived τ, round timings
 - **0004** — max-win cap, entry idempotency, RL-1 phase guard
+- **0005** — auto-order crossings, entry validation precedence and cooldown
 
 ---
 
@@ -94,7 +97,7 @@ The entry cutoff is handed to the engine as `OpenRequest.entryOpen` rather than
 computed from a clock the engine must not own. `ENTRY_CLOSED` ranks second in
 `EN-8`.
 
-**M1.5 (partial) — three enforcement gaps.** A test audit found three criteria
+**M1.5 — risk caps and auto-orders.** A test audit found three criteria
 that were *declared but unenforced*, with green suites because the tests asserted
 what the code did rather than what the criteria said:
 
@@ -115,7 +118,20 @@ what the code did rather than what the criteria said:
 **`CR-6b` was added to the acceptance criteria *before* the auto-order code**, so
 the trigger τ is fixed by the criterion rather than by whatever the first
 implementation happened to do. `packages/engine/test/auto-order-tau.test.ts`
-already asserts what the empty slot must inherit.
+asserts the slot's τ alignment.
+
+The completion tranche adds EN-4/AO-3 runtime validation, immutable TP/SL entry
+snapshots, EN-10's 900 ms authoritative-tick cooldown, and TP/SL/max-win runtime
+triggers. The tick contract is exactly:
+
+```text
+advance τ once → crush → auto-order triggers → due ascent settlement
+```
+
+TP/SL compare consecutive authoritative multiplier endpoints; max-win checks the
+current authoritative level. Stop-loss wins if both TP and SL somehow qualify,
+while crush wins all same-tick conflicts. Every trigger starts the ordinary
+500 ms ascent, and PL-4's unconditional payout clamp remains separate.
 
 ### Open
 
@@ -151,31 +167,26 @@ shipping legal later.
 | M1.2 | Vite + TypeScript strict + Vitest + CI | **Done** |
 | M1.3 | Pure engine, zero DOM, integer cents | **Done** |
 | M1.4 | Oxygen, round timings, entry cutoff | **Done** |
-| M1.5 | Risk caps and auto-orders | **In progress** |
+| M1.5 | Risk caps and auto-orders | **Done** |
 | M1.6 | `ReplayIndexSource` + recorded BTC data | Not started |
 | M1.7 | Monte-Carlo harness — calibrate θ | Not started |
 | M1.8 | PixiJS v8 scene port | Not started |
 
-**M1.5 — Risk caps and auto-orders** *(in progress)*
+**M1.5 — Risk caps and auto-orders** *(done)*
 
-Done: the `PL-4` payout cap, `EN-7` entry idempotency, the `RL-1` phase guard.
+Delivered: the unconditional `PL-4` payout cap; `EN-7` entry idempotency; the
+`RL-1` phase guard; runtime direction/leverage/stake/notional/TP/SL validation;
+immutable TP/SL snapshots; the authoritative-tick cooldown; TP/SL crossing
+triggers; the 50× max-win level trigger; Gateway/UI wiring and rejection copy.
 
-Remaining:
-- Take-profit and stop-loss set at entry, both triggering the same 500 ms ascent —
-  the ascent must remain the only exit path so the liquidation-during-ascent risk
-  stays symmetric. The τ they are evaluated at is already fixed by `CR-6b`.
-- The `AO-5` max-win **auto-surface trigger**. The cap half is done; what remains
-  is the trigger that stops a position running once the cap can no longer pay
-  more. Per `AO-5` these are deliberately separate mechanisms: a build with the
-  trigger but no clamp overpays on a gap; a build with the clamp but no trigger
-  pays correctly but lets a capped position keep risking a crush for no upside.
-- `EN-4` range validation — `stake×lev ≤ $2,000`, leverage-set and minimum-stake
-  checks.
-- The re-entry cooldown (`reentryCooldownMs` + `COOLING_OFF`), per ADR 0002.
-- The `CR-6` client-line-vs-engine-line assertion.
+The auto-order slot keeps crush precedence and the existing 500 ms market-risk
+window. Boundary, gap, tie, no-retrigger, immutability, idempotency, precedence
+and client-wiring cases are automated, with a browser checklist in
+`docs/test-plans/manual-m1.5.md`.
 
-*Exit criteria:* every cap has an AC id and a test that drives it past the
-boundary from both directions.
+*Exit criteria satisfied:* every M1.5 cap and entry rule has an AC id; tests drive
+both sides of each boundary; the engine remains pure and deterministic; the full
+test/coverage/typecheck/build gate passes before the milestone commit.
 
 **M1.6 — `ReplayIndexSource` + recorded BTC data**
 
@@ -283,25 +294,19 @@ milestone.
 
 ## Next four steps
 
-1. **Finish M1.5's auto-orders — TP and SL set at entry.** The tick loop already
-   has the slot, `CR-6b` already fixes the τ, and `auto-order-tau.test.ts` already
-   asserts what the slot must inherit. *Why first:* it is the only remaining work
-   whose contract is fully written; everything needed to do it correctly is
-   already in the repo.
-
-2. **Land the `AO-5` auto-surface trigger and `EN-4` range validation.** The cap
-   clamps the payout but nothing yet stops a capped position from riding into a
-   crush for no upside, and `stake×lev ≤ $2,000` is still unchecked. *Why second:*
-   these are the last two declared-but-unenforced criteria; closing them empties
-   the category that the M1.5 audit exists to prevent refilling.
-
-3. **Build `ReplayIndexSource` (M1.6).** *Why third:* every determinism claim in
+1. **Build `ReplayIndexSource` (M1.6).** *Why first:* every determinism claim in
    the certification bundle rests on replaying a real series, and M1.7's RTP
    numbers are only as trustworthy as the price data behind them.
 
-4. **Run the Monte-Carlo harness and calibrate θ (M1.7).** *Why fourth:* θ is the
+2. **Run the Monte-Carlo harness and calibrate θ (M1.7).** *Why second:* θ is the
    single business dial and is currently a placeholder. It needs M1.6's data and
    M1.5's complete rule set to produce a number worth committing to.
+
+3. **Add Close Calls to the fake social feed.** This is the remaining small
+   Phase 1.5 gameplay task and depends only on settled engine facts.
+
+4. **Port the scene to PixiJS v8 (M1.8).** Keep it last so renderer work cannot
+   choose or conceal authority-side game rules.
 
 Alongside all four, and not blocked by any of them: **open the licensing
 conversation** (M3.1). It is the longest lead time in the plan and the only item
@@ -318,14 +323,14 @@ Ordered by how expensive they become if discovered late.
 | Legal classification: gaming or derivative? | **Existential** | A BTC-price-driven payout may be regulated as a financial product rather than gaming in some jurisdictions, invalidating the licensing route entirely. Get a written legal opinion during Phase 1.5 — before Phase 2 is built on the assumption. |
 | Correlated exposure across all players | **High** | Unlike RNG crash games, one real price move resolves every position in the same direction simultaneously. Aggregate exposure caps and a kill switch are Phase 2 requirements, not Phase 5 polish. |
 | θ uncalibrated — RTP is currently unknown | **High** | 0.25 %/s is a placeholder. RTP is the number a regulator checks first. Let M1.7 set θ and keep the report as a committed artifact. Quote no RTP figure until then. |
-| Declared-but-unenforced criteria | **Medium** | The M1.5 audit found three criteria whose tests asserted the code rather than the criterion. `EN-4` and the `AO-5` trigger are the known remainder. Write the criterion before the code, as `CR-6b` was. |
+| Declared-but-unenforced criteria | **Medium** | The known M1.5 gaps are closed. Preserve the tests-first rule and audit future tests for assertions that merely ratify current behavior. |
 | Simulator-shaped assumptions leaking into design | **Medium** | `SIM-ONLY` fencing is good discipline, but anti-run pressure and squalls make rounds dramatic in ways real BTC will not reliably reproduce. Validate feel against `ReplayIndexSource` (M1.6) before tuning further. |
 | Responsible-play controls enforced client-side | **Medium** | Fine for a prototype, not compliant for real money. Budget the server-side move into Phase 2 rather than treating it as a Phase 3 surprise. |
 | `apps/client` is unchecked JavaScript | **Low** | Deliberate — M1.8 replaces `render/` wholesale, so typing it now is work thrown away. The risk is scope creep putting game logic in the adapter. Keep new logic in `packages/`. |
-| Stop-loss above 1× is unreachable | **Low** | `AO-3` confines SL to (0,1) and `AO-4` calls SL-wins-ties house-favourable — which only holds while SL sits below 1. A player wanting a trailing stop above 1× has no way to express it. Confirm the restriction is intended while building M1.5's SL. |
+| No trailing stop above 1× | **Low** | Intentional v1 scope: `AO-3` confines SL to (0,1). A profit-protecting trailing stop needs a separately specified order type rather than silently widening stop-loss semantics. |
 | PixiJS port attempted too early | **Low** | Already correctly sequenced last. Keep it there. |
 
 ---
 
-*Crush Depth · delivery plan · Rev. 3 — M1.2 through M1.5 landed, 398 tests green
-· repository state `12d2819`*
+*Crush Depth · delivery plan · Rev. 4 — M1.1 through M1.5 complete, 438 tests
+green; M1.6 is next.*

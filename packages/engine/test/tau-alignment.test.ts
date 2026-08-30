@@ -71,7 +71,7 @@ const DIRECTIONS: readonly Direction[] = [1, -1];
 const TICK_MS = 125;
 /** 90 s round at 8 Hz = 720 authoritative ticks (RL-2, parameter sheet §12). */
 const ROUND_TICKS = 720;
-const STAKE = 50_000;
+const STAKE = 5_000;
 const START_BALANCE = 10_000_000;
 /** θ = 0.25 %/s, the spec's opening value; non-zero so the line actually creeps. */
 const CONFIG: EngineConfig = DEFAULT_CONFIG;
@@ -656,6 +656,8 @@ describe('CR-6 — the probe measures the engine itself', () => {
             openedT: 0,
             ticksElapsed: n,
             theta: CONFIG.thetaPerSecond,
+            lastMultiplier: 1,
+            ascentCause: null,
             resolveT: 0,
           };
           const probed = probeEngineLine(p, CONFIG.tickSeconds);

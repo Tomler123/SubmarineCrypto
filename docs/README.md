@@ -14,3 +14,5 @@ They stay there until a task explicitly moves them, so that every existing
 reference in `CLAUDE.md`, `AGENTS.md` and `ARCHITECTURE.md` keeps resolving.
 
 - [`decisions/`](./decisions) — decision log.
+- [`test-plans/`](./test-plans) — milestone-specific manual browser checklists.
+- [`DESCENT-PLAN.md`](./DESCENT-PLAN.md) — current delivery roadmap and milestone status.

@@ -17,5 +17,6 @@ export const el={
   cashLabel:$('#cashLabel'), btnCash:$('#btnCash'), piLeft:$('#piLeft'),
   o2Fill:$('#o2Fill'), hatch:$('#hatchMsg'),
   piRight:$('#piRight'), msg:$('#consoleMsg'),
+  takeProfit:$('#takeProfitIn'), stopLoss:$('#stopLossIn'),
   btnS:$('#btnSurface'), btnD:$('#btnDive'), session:$('#sessionClock')
 };

@@ -35,6 +35,7 @@
 export const ENGINE_PACKAGE = '@crush/engine';
 
 export type {
+  AscentCause,
   Direction,
   EngineConfig,
   EngineEvent,
