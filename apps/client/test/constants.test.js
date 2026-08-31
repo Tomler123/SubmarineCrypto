@@ -83,19 +83,16 @@ describe('round timings (§12, RL-2)', () => {
 });
 
 describe('the business dial', () => {
-  it('theta is 0.25 %/s — the spec opening value, not yet calibrated', () => {
-    // M1.7 replaces this with the value that lands RTP at 96.5 %. Until then
-    // the number must match the sheet exactly, so a calibration run starts
-    // from a known point.
-    expect(CFG.THETA_PER_S).toBe(0.0025);
-    expect(CFG.THETA_PER_S * 100).toBeCloseTo(0.25, 12);
+  it('theta is the M1.7 engineering-calibrated 0.03 %/s', () => {
+    expect(CFG.THETA_PER_S).toBe(0.0003);
+    expect(CFG.THETA_PER_S * 100).toBeCloseTo(0.03, 12);
   });
 
   it('theta is the only value expressed per second rather than per tick', () => {
     // Guards the M1.4 rule from the other side: if theta were ever restated
     // per tick, every tau multiplication in the engine would be off by 8x.
     const perTick = CFG.THETA_PER_S * CFG.TICK_S;
-    expect(perTick).toBeCloseTo(0.0003125, 12);
+    expect(perTick).toBeCloseTo(0.0000375, 12);
   });
 });
 

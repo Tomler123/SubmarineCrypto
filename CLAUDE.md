@@ -80,9 +80,19 @@ the client still defaults to the simulator and opts into replay only through
 explicit `sigma_floor²` transform initial state are acceptance criteria FI-10
 and FI-11, with the decision recorded in ADR 0006.
 
-M1.7 Monte-Carlo harness and M1.8 PixiJS port remain unstarted. **θ is not yet
-calibrated** — 0.25 %/s is the spec's opening value and M1.7 sets the real one
-against RTP 96.5 %.
+M1.7 is complete. `@crush/sim` runs the real engine against seeded simulator
+rounds and the unchanged M1.6 replay mapping, models the four MC-3 player
+behaviors, and emits canonical JSON plus a compact Markdown report. The
+engineering calibration selects **θ = 0.03 %/s**: its 4,000-position selection
+portfolio estimates 96.5437 % RTP, while a disjoint 20,000-position simulator
+cohort estimates 96.9492 % with a 99 % interval containing the 96.5 % target.
+The report is deliberately `engineering-preliminary`; PL-6 still requires at
+least 10⁷ positions and 90 days of representative BTC before launch. See ADR
+0007. M1.8 remains unstarted.
+
+495 tests pass with 4 skipped across 39 files. Package coverage gates remain
+green; `@crush/sim` is at 96.04 % lines/statements, 84.55 % branches and 100 %
+functions without excluding its populated barrel.
 
 ### Where things live
 
@@ -157,7 +167,7 @@ TICK 8 Hz (0.125 s) · BUFFER 150 ms · ASCENT 500 ms
 ROUND 90 s · INTERMISSION 8 s · ENTRY CUTOFF T−5 s   (all live in CFG)
 I₀ = 1000 · λ = 0.997 · σ_floor = 1.2 bp/tick · clamp ±3.5σ · v = 0.0042
 LEVERAGE {2, 5, 10, 25} · stake×lev ≤ $2,000 · max win 50× and $10k
-θ = 0.25 %/s (RTP target 96.5 %, calibrate by simulation)
+θ = 0.03 %/s (M1.7 engineering value; RTP target 96.5 %; PL-6 pending)
 M_t = 1 + L·d·(I_t/I_e − 1) − θ·τ ;  τ = ticks-since-entry × 0.125 (entry = tick 0)
 crush at the first tick the index reaches the line I_e·(1 − d·(1 − θτ)/L)
   — the LINE is authoritative where floats separate it from M_t ≤ 0
@@ -168,8 +178,8 @@ crush at the first tick the index reaches the line I_e·(1 − d·(1 − θτ)/L
 > **Current vs. target.** The npm-workspaces monorepo and TypeScript build are
 > live. `@crush/ledger` and the pure `@crush/engine` are populated; the remaining
 > client is still ES modules under `apps/client` until M1.8. `packages/gateway`
-> and `packages/sim` remain milestone-shaped placeholders; `packages/feed` is
-> populated through M1.6.
+> remains a milestone-shaped placeholder; `packages/feed` is populated through
+> M1.6 and `packages/sim` through M1.7.
 
 ```
 /apps/client          React + PixiJS v8 + Zustand + Framer Motion (mobile-first, portrait)
@@ -196,7 +206,7 @@ crush at the first tick the index reaches the line I_e·(1 − d·(1 − θτ)/L
 7. ~~`ReplayIndexSource` that replays recorded real BTC 100 ms data files.~~
    **done (M1.6)** — deterministic 125 ms-grid selection, published transform,
    primary-source fixtures, provenance, and engine settlement evidence.
-8. Monte-Carlo harness in `/packages/sim`: calibrate θ to RTP 96.5 % across behavior models; output a report artifact.
+8. ~~Monte-Carlo harness in `/packages/sim`: calibrate θ to RTP 96.5 % across behavior models; output a report artifact.~~ **done (M1.7)** — seeded trial-addressed streams, simulator selection, separately reported replay stress evidence, 99 % intervals, and canonical JSON/Markdown artifacts; θ is 0.03 %/s pending PL-6.
 9. Close Calls events in the (still fake) social feed.
 10. PixiJS scene port of the Canvas 2D renderer — last, after logic is tested.
 

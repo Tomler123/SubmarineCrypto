@@ -3,11 +3,21 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Monte-Carlo RTP calibration harness and behaviour models. Chooses theta; its report is a release artifact.",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "description": "Deterministic Monte-Carlo RTP calibration harness and behavior models; emits preliminary and release-scale report data.",
+  "scripts": {
+    "calibrate": "node ./scripts/generate-reference-report.mjs"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "development": {
+        "types": "./src/index.ts",
+        "default": "./src/index.ts"
+      },
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "dependencies": {
     "@crush/engine": "*",

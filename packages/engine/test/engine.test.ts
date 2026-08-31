@@ -199,11 +199,11 @@ describe('CO-1 — the Blow settles at the first tick ≥ t_r + 500 ms', () => {
     // Index moves during the 500 ms ascent; the later value is what pays.
     s = onTick(s, tick(1_250, 1020)).state;
     const r = onTick(s, tick(1_625, 1010));
-    // Two ticks past entry, so tau = 0.25 s and oxygen has taken 0.000625.
-    // M = 1 + 10·(1010/1000 − 1) − 0.0025·0.25 = 1.099375 → 54_968.75 → 54_969.
+    // Two ticks past entry, so tau = 0.25 s and oxygen has taken 0.000075.
+    // M = 1 + 10·(1010/1000 − 1) − 0.0003·0.25 = 1.099925 → 54_996.25 → 54_996.
     expect(r.state.position?.result?.tau).toBe(0.25);
-    expect(r.state.position?.result?.multiplier).toBeCloseTo(1.099375, 12);
-    expect(r.state.position?.result?.payout).toBe(54_969);
+    expect(r.state.position?.result?.multiplier).toBeCloseTo(1.099925, 12);
+    expect(r.state.position?.result?.payout).toBe(54_996);
   });
 
   it('PL-3: oxygen accrues during the ascent exactly as while open', () => {
@@ -229,17 +229,17 @@ describe('CO-1 — the Blow settles at the first tick ≥ t_r + 500 ms', () => {
     expect(settled?.tau).toBe(4 * 0.125);
     // The multiplier the ascent settled at is the one the still-open position
     // shows on that same tick — no discount, no penalty, just the same oxygen.
-    expect(settled?.multiplier).toBeCloseTo(1 - 0.0025 * 0.5, 12);
+    expect(settled?.multiplier).toBeCloseTo(1 - DEFAULT_CONFIG.thetaPerSecond * 0.5, 12);
   });
 
   it('CO-4: oxygen and index keep running during the ascent — a losing move still lands', () => {
     let s = opened(fresh(), 1, 50_000, 10, tick(0, I0));
     s = requestAscent(s, 1_000).state;
     const r = onTick(s, tick(1_500, 995));
-    // One tick past entry: tau = 0.125 s, oxygen takes 0.0003125.
-    // M = 1 + 10·(−0.005) − 0.0003125 = 0.9496875 → 47_484.375 → 47_484.
-    expect(r.state.position?.result?.payout).toBe(47_484);
-    expect(r.state.position?.result?.pnl).toBe(-2_516);
+    // One tick past entry: tau = 0.125 s, oxygen takes 0.0000375.
+    // M = 1 + 10·(−0.005) − 0.0000375 = 0.9499625 → 47_498.125 → 47_498.
+    expect(r.state.position?.result?.payout).toBe(47_498);
+    expect(r.state.position?.result?.pnl).toBe(-2_502);
   });
 });
 
@@ -270,7 +270,9 @@ describe('CR-1 / CR-2 — crush at the first tick where M ≤ 0, payout zero', (
     const s = opened(fresh(), 1, 50_000, 10, tick(0, I0));
     // The line at the tick under test (tau = 0.125 s), not the tau=0 line —
     // CR-6: the value tested must be the line as it stands on that tick.
-    const r = onTick(s, tick(125, crushIndex(1, 10, I0, 0.0025, 0.125)));
+    const r = onTick(s, tick(125, crushIndex(
+      1, 10, I0, DEFAULT_CONFIG.thetaPerSecond, 0.125,
+    )));
     const settlement = r.state.position?.result;
     expect(settlement?.reason).toBe('crush');
     expect(settlement?.crushed).toBe(true);
@@ -447,8 +449,8 @@ describe('M1.3 — events replace the engine’s DOM calls', () => {
 ================================================================ */
 
 describe('PL-2 — theta comes from config and is fixed for the life of a position', () => {
-  it('PL-2: DEFAULT_CONFIG carries theta = 0.25 %/s and the 8 Hz tick', () => {
-    expect(DEFAULT_CONFIG.thetaPerSecond).toBe(0.0025);
+  it('PL-2: DEFAULT_CONFIG carries M1.7 theta = 0.03 %/s and the 8 Hz tick', () => {
+    expect(DEFAULT_CONFIG.thetaPerSecond).toBe(0.0003);
     expect(DEFAULT_CONFIG.tickSeconds).toBe(0.125);
   });
 
@@ -492,7 +494,7 @@ describe('PL-2 — theta comes from config and is fixed for the life of a positi
     let s = opened(fresh(), 1, 50_000, 10, tick(0, I0));
     for (let i = 1; i <= 8; i += 1) s = onTick(s, tick(i * 125, I0)).state;
     const settlement = settleAtRoundEnd(s, tick(1_000, I0)).state.position!.result!;
-    expect(settlement.theta).toBe(0.0025);
+    expect(settlement.theta).toBe(DEFAULT_CONFIG.thetaPerSecond);
     expect(settlement.tau).toBe(1);
   });
 });
@@ -659,13 +661,13 @@ describe('M1.4 — the house edge exists', () => {
   it('PL-6 precondition: a flat round now returns LESS than the stake', () => {
     // The roadmap gap this milestone closes: before M1.4 a motionless index
     // returned the stake exactly and RTP was 100 % minus rounding. A 90 s hold
-    // at 0.25 %/s costs 22.5 % of the multiplier.
+    // at 0.03 %/s costs 2.7 % of the multiplier.
     let s = opened(fresh(), 1, 50_000, 10, tick(0, I0));
     for (let i = 1; i <= 720; i += 1) s = onTick(s, tick(i * 125, I0)).state;
     const settlement = settleAtRoundEnd(s, tick(90_000, I0)).state.position!.result!;
     expect(settlement.tau).toBe(90);
-    expect(settlement.multiplier).toBeCloseTo(1 - 0.225, 12);
-    expect(settlement.payout).toBe(38_750);
+    expect(settlement.multiplier).toBeCloseTo(1 - 0.027, 12);
+    expect(settlement.payout).toBe(48_650);
     expect(settlement.pnl).toBeLessThan(0);
   });
 
@@ -722,10 +724,10 @@ describe('LG-4 — settlement records carry what the ledger must retain', () => 
   it('LG-4: a crush records its true multiplier even though payout is floored to 0', () => {
     const s = opened(fresh(), 1, 50_000, 10, tick(0, I0));
     const settlement = onTick(s, tick(125, 800)).state.position?.result;
-    // M = 1 + 10·(−0.2) − 0.0025·0.125 = −1.0003125, recorded for audit;
+    // M = 1 + 10·(−0.2) − 0.0003·0.125 = −1.0000375, recorded for audit;
     // payout still exactly 0. The oxygen term is in the recorded multiplier
     // because LG-4 wants the number the formula produced, not a tidied one.
-    expect(settlement?.multiplier).toBeCloseTo(-1.0003125, 12);
+    expect(settlement?.multiplier).toBeCloseTo(-1.0000375, 12);
     expect(settlement?.payout).toBe(0);
   });
 });

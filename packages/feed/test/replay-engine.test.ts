@@ -116,8 +116,8 @@ describe('FI-15 — deterministic settlement on recorded real BTC', () => {
       positionId: 'flash-crash-long',
       reason: 'ascent',
       crushed: false,
-      payout: 2_739,
-      pnl: -2_261,
+      payout: 2_746,
+      pnl: -2_254,
     });
   });
 });

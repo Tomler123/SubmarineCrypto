@@ -179,8 +179,19 @@ same class of mismatch at a scale players can see. See `CR-6`.
 ### RTP target and calibration
 
 - Target **RTP 96.5%** (Aviator ≈ 97%, slots 94–96% — this range is what operators accept).
-- With a near-martingale index, E[payout] ≈ stake·(1 − θ·E[τ]) plus small boundary effects (loss capped at −stake slightly favors the player; the clamp is symmetric). **θ = 0.25%/s** with expected holds of 10–15 s lands in range.
-- **Mandatory task before launch:** Monte-Carlo calibration of θ against behavior models (random holds, take-profit users, stop-loss users, max-leverage gamblers) on both the simulator and replayed historical BTC data. θ is the single tuning knob; ship it as remote config with a published current value.
+- With a near-martingale index, E[payout] is approximately
+  stake·(1 − θ·E[τ]) plus boundary and optional-stopping effects. M1.7 replaces
+  the opening estimate with an **engineering value θ = 0.03%/s**: the declared
+  equal-weight simulator selection portfolio estimates 96.5437% RTP. A disjoint
+  simulator cohort estimates 96.9492% with a 99% interval containing 96.5%.
+- The committed M1.7 result is `engineering-preliminary`, not launch
+  certification. Before launch, PL-6 still requires at least 10⁷ simulator
+  positions and at least 90 days of representative historical BTC through the
+  same deterministic runner. The selected M1.6 replay fixtures are separate
+  stress evidence and are not pooled into the RTP point estimate.
+- θ is the single tuning knob; ship it as remote config with a published current
+  value. Behavior distributions, mixture weights, datasets, or candidate changes
+  require versioned acceptance criteria and an ADR before recalibration.
 - Never tune RTP by touching the index transform. The transform is the trust story; θ is the business dial. Keep them separated in code and in the audit trail.
 
 ---
@@ -283,7 +294,7 @@ Position it as "the first market-driven crash game," not "the first crypto price
 | Entry cutoff | T−5 s | tunable |
 | Leverage set | {2, 5, 10, 25} | tunable |
 | Notional cap | stake×lev ≤ $2,000 | bankroll-derived |
-| θ (oxygen) | 0.25%/s → RTP ≈ 96.5% | **business dial**, calibrate by sim |
+| θ (oxygen) | 0.03%/s; M1.7 engineering RTP 96.5437% | **business dial**, PL-6 validation pending |
 | Ascent | 500 ms | locked (fairness) |
 | Max win | 50× and $10k/position | bankroll-derived |
 | Stakes | $0.50 min, $5 default | tunable |

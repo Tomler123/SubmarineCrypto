@@ -62,7 +62,7 @@ apps/client/src/
 
 ---
 
-## Target packages (created at M1.2, filled through M1.6)
+## Target packages (created at M1.2, filled through M1.7)
 
 The workspaces exist with manifests, tsconfigs and project references so that
 each milestone fills a package rather than inventing one. Placeholder barrels
@@ -75,7 +75,7 @@ them.
 | `@crush/engine` | **live through M1.5** | pure position lifecycle, oxygen, crush, settlement, entry validation/cooldown, TP/SL/max-win triggers and payout caps |
 | `@crush/feed` | **live through M1.6** | TypeScript `IndexSource` contract/base gate, published transform, simulated and replay sources, `InterpBuffer`, fixture parser |
 | `@crush/gateway` | M2.2 | request/ack seam, optimistic mirror |
-| `@crush/sim` | M1.7 | Monte-Carlo RTP harness, behaviour models |
+| `@crush/sim` | **live through M1.7** | deterministic Monte-Carlo RTP harness, behavior models, source datasets, statistics and canonical report data |
 
 TypeScript project references declare the dependency graph, so `tsc --build`
 typechecks in dependency order and `packages/engine` has no path by which it
@@ -85,6 +85,28 @@ durable guard on that rule: it fails on any `render/` `ui/` `audio/` import, any
 `performance.*`, `new Date`) and any `Math.random`. M1.3 removed the deferred
 callback that used to sit inside `Engine.settle`, so the guard now passes on real
 engine code rather than describing future work.
+
+`packages/sim/test/purity.test.ts` applies the same boundary to the calibration
+core and also bans ambient randomness. The harness receives or derives every
+random stream from its declared master seed and stable trial address; it has no
+DOM, clock, timer, scheduler-pacing or client-state dependency. The report
+script is the I/O shell: it reads fixture bytes and writes artifacts, while the
+package remains deterministic data-in/data-out code.
+
+### Calibration evidence boundary
+
+`@crush/sim` depends inward on `@crush/engine`, `@crush/feed`, and
+`@crush/ledger`; none depends back on it. Simulator evidence is generated via
+the existing `SimulatedIndexSource` with injected scheduling and RNG. Replay
+evidence is generated via `ReplayIndexSource` using FI-10 unchanged: a
+fixture-start 125 ms grid selects the latest original row at or before each
+boundary and emits only its original timestamp and price.
+
+Theta selection uses only an equal-weight simulator portfolio. The two M1.6
+fixtures are selected calm/flash-crash strata, so their results are reported as
+stress evidence and are never assigned an invented population weight. This
+calibration-only source choice does not touch the client seam: the simulator
+remains the normal client source and replay remains an explicit feed-seam opt-in.
 
 ---
 

@@ -91,11 +91,98 @@ Conventions: "tick" = one 125 ms server sample. "MUST" = release blocker. All mo
 - **PL-1** `M_t = 1 + L·d·(I_t/I_e − 1) − θ·τ`, τ measured from the entry-execution tick in seconds (tick-count × 0.125). Golden-vector test set MUST cover both directions × all leverages.
   - **τ is a tick count, never a clock reading.** The entry-execution tick is tick 0, so `M = 1` there exactly. τ advances once per authoritative tick, before that tick is evaluated against anything, so the crush line, any auto-order trigger and the settlement multiplier on a given tick all see the same τ (CR-6).
   - A jitter gap that §8 treats as one tick costs **one tick** of oxygen, not the wall-clock interval — otherwise a network hiccup charges the player for time the game did not deliver. This is also what makes a replayed round (M1.6) reproduce its oxygen exactly however fast the file is read.
-- **PL-2** θ = 0.25 %/s from remote config; a config change takes effect only at the next round boundary, never mid-round, and is logged. Enforced in two layers rather than by convention: the round machine re-reads config only at a round boundary, and **each position snapshots the θ in force at its entry tick** and settles under that value. A caller that violated the first rule still cannot change the edge on a position that is already open. The snapshotted value is the θ that LG-4 retains.
+- **PL-2** The M1.7 engineering-calibrated θ is 0.03 %/s from remote config,
+  selected by MC-4/MC-5 and explicitly preliminary until PL-6's release-scale
+  validation. A config change takes effect only at the next round boundary,
+  never mid-round, and is logged. Enforced in two layers rather than by
+  convention: the round machine re-reads config only at a round boundary, and
+  **each position snapshots the θ in force at its entry tick** and settles under
+  that value. A caller that violated the first rule still cannot change the edge
+  on a position that is already open. The snapshotted value is the θ that LG-4
+  retains.
 - **PL-3** Oxygen accrues during ascent exactly as while open.
 - **PL-4** Settlement payout = stake × max(0, M) rounded half-away-from-zero to integer cents, computed once, then **clamped to the max-win bound** `min(50 × stake, $10,000)` (AO-5, parameter sheet §12). Property test: for all inputs, 0 ≤ payout ≤ min(50 × stake, $10,000 cap). Both bounds are engine-side and unconditional: the clamp applies to **every** settlement reason, not only to a max-win auto-surface, because a gap tick can carry `M` past 50 between two ticks and a round-end settlement (RL-4) has no trigger to route through. Clamp after the single rounding, never before — rounding a pre-clamped float would be a second conversion and violate the computed-once rule. The bound is a function of the **stake**, so it is per position and needs no state; the aggregate exposure caps are RK-1/RK-3.
 - **PL-5** Maximum loss of any position is exactly the stake. No mechanism (gap ticks, clock skew, config change) may produce a negative balance from a position.
-- **PL-6** Simulated RTP over the reference behavior-model suite is 96.5 % ± 0.5 % (10⁷ position Monte-Carlo on both simulator and ≥ 90 days of replayed real BTC data). The calibration report is a versioned release artifact.
+- **PL-6** Release-scale RTP validation over the reference behavior-model suite
+  MUST report 96.5 % ± 0.5 % for the declared production player-mixture
+  weighting, using at least 10⁷ positions from the simulator and a separately
+  reported replay analysis spanning ≥ 90 days of recorded real BTC data. The
+  historical analysis MUST preserve day/block provenance and MUST NOT multiply
+  its apparent sample size by replaying the same short interval. The
+  release-scale calibration report is a versioned release artifact. M1.7's
+  committed engineering report is explicitly preliminary until this data-volume
+  gate is run; MC-8 prevents it from being presented as certification evidence.
+
+## MC — Monte-Carlo Calibration (M1.7)
+
+- **MC-1** `@crush/sim` MUST run the real `@crush/engine` settlement lifecycle
+  against authoritative ticks produced through both the existing
+  `SimulatedIndexSource` and `ReplayIndexSource`. It MUST NOT copy or simplify
+  multiplier, crush, ascent, auto-order, rounding, payout-cap, or settlement
+  formulas. Simulator remains the normal client source; calibration source
+  selection exists only inside `@crush/sim` and the feed seam.
+- **MC-2** Every stochastic input MUST come from an explicitly supplied master
+  seed. Source paths and player trials derive independent streams from the
+  stable tuple `(master seed, source dataset, behavior id, trial index)`; no
+  shared mutable RNG stream may make a result depend on iteration, batching,
+  worker, or candidate order. The report records the seed and derivation
+  version. Candidate selection and final report cells MUST use distinct,
+  deterministically derived stream cohorts so report evidence does not reuse
+  the player actions that selected θ.
+- **MC-3** The committed engineering reference suite fixes these behavior-model
+  assumptions before implementation:
+  - common inputs: one $5.00 position per trial, Surface/Dive with equal
+    probability, source path uniformly selected from the declared source
+    dataset, and entry uniformly selected from authoritative ticks inside the
+    85-second entry window;
+  - `random-hold`: leverage uniformly selected from `{2, 5, 10, 25}` and a
+    manual cash-out requested after a uniform 5–20 second hold;
+  - `take-profit`: leverage uniformly selected from `{2, 5, 10, 25}`, TP set to
+    `1 + L·0.0147 + U[0.10, 0.90]`, and no manual exit before TP, crush, or
+    round end;
+  - `stop-loss`: leverage uniformly selected from `{2, 5, 10, 25}`, SL uniformly
+    selected from `[0.25, 0.90]`, and no manual exit before SL, crush, or round
+    end;
+  - `max-leverage`: fixed 25× leverage, no auto orders, and a manual cash-out
+    requested after a uniform 5–20 second hold.
+  Continuous draws use half-open intervals before conversion to an
+  authoritative tick index. A recorded path shorter than 90 seconds uses only
+  its available authoritative ticks, closes entry five seconds before its last
+  tick, and applies ordinary RL-4 settlement at that last tick; it is never
+  looped, padded, or joined to another fixture. These are transparent reference
+  assumptions, not claims about observed production players; observed weights
+  replace them only through a new versioned calibration report and ADR.
+- **MC-4** Engineering RTP is `sum(payout cents) / sum(stake cents)`. The
+  selected θ minimizes absolute error from 96.5 % for the equal-weight mean of
+  the four simulator behavior RTPs. Candidate evaluation uses common random
+  numbers. Replay results are never pooled into that point estimate because the
+  committed calm and flash-crash fixtures are deliberately selected stress
+  intervals, not a representative market sample. The report MUST show every
+  behavior/source cell so this separation is reviewable.
+- **MC-5** Candidate selection is deterministic: evaluate the declared ordered
+  candidate list, choose the smallest absolute target error, and break an exact
+  tie in favor of the lower θ. The report records every candidate RTP and the
+  selected candidate. Changing candidates, mixture weights, target, tie-break,
+  behavior parameters, or dataset is a versioned calibration change.
+- **MC-6** Every reported behavior/source cell MUST include position count,
+  wagered and paid cents, RTP, return-ratio sample variance, standard error, and
+  a two-sided 99 % Student-t confidence interval computed from 50 deterministic
+  contiguous batches. It MUST also include settlement-reason counts,
+  auto-order-cause counts, max-win cap-bind count/rate, maximum payout, maximum
+  loss, and peak notional. Empty or non-finite statistics fail report creation.
+- **MC-7** For identical configuration and fixture bytes, canonical report data
+  MUST be byte-identical across fresh runs and invariant to candidate order,
+  behavior order, trial execution order, batching, playback speed, scheduler
+  pacing, wall-clock time, timers, DOM state, and interpolation. The deterministic
+  core MUST contain no `Date`, `performance`, timer, DOM, or ambient RNG read.
+- **MC-8** The committed M1.7 engineering artifact MUST record the master seed,
+  per-cell sample count, exact behavior parameters, simulator configuration,
+  replay fixture names and SHA-256 checksums, candidate and selected θ, all MC-6
+  statistics, methodology, and limitations. It MUST be labelled
+  `engineering-preliminary`, name PL-6's outstanding 10⁷-position/≥90-day
+  release run, and MUST NOT claim certification readiness. The package MUST
+  expose the same deterministic runner with configurable sample counts and
+  replay datasets so the release-scale report changes inputs, not algorithms.
 
 ## CR — Crush (Liquidation)
 

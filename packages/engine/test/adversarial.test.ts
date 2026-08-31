@@ -53,7 +53,7 @@ const open: typeof engineOpen = (state, req, at, config = DEFAULT_CONFIG) => eng
 const LEVERAGES: readonly Leverage[] = [2, 5, 10, 25];
 const DIRECTIONS: readonly Direction[] = [1, -1];
 
-/** θ = 0.25 %/s and 8 Hz ticks — the parameter sheet's values (PL-2). */
+/** M1.7 engineering θ and 8 Hz ticks — the parameter sheet values (PL-2). */
 const THETA = DEFAULT_CONFIG.thetaPerSecond;
 const TICK_S = DEFAULT_CONFIG.tickSeconds;
 const ASCENT_MS = DEFAULT_CONFIG.ascentMs;
@@ -230,7 +230,9 @@ describe('CR-1 — the crush boundary through the full engine path', () => {
       for (const lev of LEVERAGES) {
         const atEntry = crushIndex(dir, lev, I0, THETA, 0);
         const crept = crushIndex(dir, lev, I0, THETA, 80.125);
-        expect(Math.abs(crept - atEntry), `dir ${dir} lev ${lev}`).toBeGreaterThan(1);
+        const expectedMovement = I0 * THETA * 80.125 / lev;
+        expect(Math.abs(crept - atEntry), `dir ${dir} lev ${lev}`).toBeCloseTo(expectedMovement, 12);
+        expect(Math.abs(crept - atEntry), `dir ${dir} lev ${lev}`).toBeGreaterThan(0);
         // The line creeps TOWARD the entry from whichever side it began (CR-3).
         expect(Math.abs(crept - I0)).toBeLessThan(Math.abs(atEntry - I0));
       }
@@ -331,9 +333,9 @@ describe('CO-5 / RL-4 — round end while ascending, and called twice', () => {
     expect(r.state.position?.result?.reason).toBe('round-end');
     // RL-4: "no penalty and no fee" — the multiplier is the ordinary one at the
     // final tick, so this is the same money an ascent settling there would pay.
-    // tau = 0.125 s (one onTick), M = 1 + 10 x 0.01 - 0.0025 x 0.125 = 1.0996875
-    // -> 50000 x 1.0996875 = 54984.375 -> 54984 half away from zero.
-    expect(r.state.position?.result?.payout).toBe(54_984);
+    // tau = 0.125 s (one onTick), M = 1 + 10 x 0.01 - 0.0003 x 0.125 = 1.0999625
+    // -> 50000 x 1.0999625 = 54998.125 -> 54998 half away from zero.
+    expect(r.state.position?.result?.payout).toBe(54_998);
   });
 
   it('CO-5: the ascending position settles under RL-4 even before its resolveT', () => {
@@ -697,7 +699,7 @@ describe('PL-1 — entry at a tick where I_t == I_e exactly', () => {
  * τ = ticksElapsed × tickSeconds (PL-1), and `onTick` advances τ before testing,
  * so the crush lands on tick number `ceil((1/θ) / tickSeconds)`.
  *
- * At the parameter sheet's θ = 0.25 %/s that is 1/0.0025 = 400 s = tick 3200 —
+ * At the M1.7 θ = 0.03 %/s that is 1/0.0003 = 3333.33... s = tick 26667 —
  * beyond a 90 s round, so the case is unreachable in play but is exactly where
  * the formula must still hold. The faster θ values below reach it inside a round
  * and prove the general formula rather than one arithmetic coincidence.
@@ -766,13 +768,13 @@ describe('CR-1 / PL-1 — theta*tau alone crushes a flat position', () => {
     expect(result?.tau).toBe(1 / config.thetaPerSecond);
   });
 
-  it('PL-1: at the parameter sheet theta the flat crush is tick 3200 — beyond a round', () => {
-    // 1/0.0025 = 400 s = 3200 ticks, against a 90 s (720 tick) round. Asserted
+  it('PL-1: at the parameter sheet theta the flat crush is tick 26667 — beyond a round', () => {
+    // 1/0.0003 = 3333.33... s = 26667 ticks, against a 90 s round. Asserted
     // so a future theta change that brings the oxygen crush INSIDE a round —
     // a materially different game — cannot land silently.
     const n = specCrushTick(THETA, TICK_S);
-    expect(n).toBe(3_200);
-    expect(n * TICK_S).toBe(400);
+    expect(n).toBe(26_667);
+    expect(n * TICK_S).toBe(3_333.375);
     const ticksPerRound = 90 / TICK_S;
     expect(n).toBeGreaterThan(ticksPerRound);
 

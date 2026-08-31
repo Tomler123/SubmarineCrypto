@@ -19,6 +19,10 @@ import { defineConfig } from 'vitest/config';
 ================================================================ */
 export default defineConfig({
   test: {
+    // Keep exhaustive certification/property files below their existing 5 s
+    // per-test limit under full-suite load. The M1.7 files add CPU work, not a
+    // reason to loosen assertions or timeouts.
+    maxWorkers: 2,
     projects: [
       {
         test: {
@@ -42,11 +46,10 @@ export default defineConfig({
       include: ['packages/*/src/**/*.ts', 'apps/client/src/**/*.js'],
       // Placeholder barrels carrying only a package-name constant. Each is
       // removed from this list by the milestone that fills the package in:
-      // engine M1.3 (done), feed M1.6, gateway M2.2, sim M1.7.
+      // engine M1.3 (done), feed M1.6 (done), gateway M2.2, sim M1.7 (done).
       exclude: [
         'packages/feed/src/index.ts',
         'packages/gateway/src/index.ts',
-        'packages/sim/src/index.ts',
       ],
       // CLAUDE.md / testing rule: 80% minimum — over `packages/*` ONLY.
       // `apps/client` is measured but ungated; see the `client` project note.

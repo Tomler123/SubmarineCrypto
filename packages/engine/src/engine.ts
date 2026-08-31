@@ -40,15 +40,15 @@ import type {
  *
  * `ascentMs` and `tickSeconds` are audit-locked (parameter sheet §12): the
  * 500 ms Blow is a fairness constant (FA-2) and 0.125 s is the 8 Hz tick rate.
- * `thetaPerSecond` is the single business dial — 0.25 %/s is the spec's opening
- * value, targeting RTP 96.5 %, and M1.7's Monte-Carlo harness replaces it with a
- * calibrated figure. It lives here, in a config object, rather than as a literal
- * in the math, because Phase 2 serves it as remote config (PL-2) and because a
- * literal cannot be swept by a calibration run.
+ * `thetaPerSecond` is the single business dial. M1.7's preliminary engineering
+ * calibration selected 0.03 %/s against the declared reference portfolio; the
+ * release-scale PL-6 run remains required before launch. It lives here, in a
+ * config object, rather than as a literal in the math, because Phase 2 serves it
+ * as remote config (PL-2) and because a literal cannot be swept.
  */
 export const DEFAULT_CONFIG: EngineConfig = Object.freeze({
   ascentMs: 500,
-  thetaPerSecond: 0.0025,
+  thetaPerSecond: 0.0003,
   tickSeconds: 0.125,
   // PL-4 / AO-5, parameter sheet §12: 50× and $10,000. Operator-configurable
   // within house limits (RK-3) and audit-logged on change, unlike theta which

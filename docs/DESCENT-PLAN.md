@@ -1,6 +1,6 @@
 # Crush Depth — The Descent Plan
 
-**Rev. 5 · 2026-08-31 · M1.6 completion state**
+**Rev. 6 · 2026-08-31 · M1.7 completion state**
 
 > This is the portable, plain-text mirror of the delivery-plan artifact. It is
 > the version to paste into any tool that cannot open a `claude.ai` link.
@@ -22,17 +22,30 @@ client code.
 | | |
 |---|---|
 | Phase complete | **1.0** — prototype, module split |
-| Phase in progress | **1.5** — 7 of 10 tasks done; M1.6 exit gate complete |
+| Phase in progress | **1.5** — 8 of 10 tasks done; M1.7 exit gate complete |
 | Engine | Pure, immutable TypeScript; entry validation, cooldown, auto-orders and caps live |
-| Tests | **474 passed, 4 skipped** across 32 files; package coverage gates pass (feed 97.36% lines, 95% branches, 94.44% functions) |
-| Spec documents | **2 of 2** — 82 acceptance ids across 14 categories |
-| Next milestone | **M1.7** — Monte-Carlo harness and θ calibration |
+| Tests | **495 passed, 4 skipped** across 39 files; package coverage gates pass (sim 96.04% lines, 84.55% branches, 100% functions) |
+| Spec documents | **2 of 2** — 90 acceptance ids across 15 categories |
+| Next planned work | Close Calls and M1.8 remain unstarted |
 
 ---
 
-## What changed since Rev. 3
+## What changed in Rev. 6
 
-Rev. 4 closes M1.5's remaining declared-but-unenforced behavior:
+M1.7 adds ADR 0007 and the deterministic calibration evidence bundle:
+
+- `@crush/sim` drives the real engine through both the existing simulator and
+  unchanged M1.6 replay source;
+- four frozen reference behavior models use trial-addressed seeded randomness;
+- simulator evidence selects θ while selected calm/flash-crash replays remain a
+  separately reported stress stratum;
+- the canonical report includes candidate/error data, per-cell and portfolio
+  RTP, 99 % intervals, cap frequency, extrema, exposure, exact seed/config, and
+  replay provenance;
+- θ is now 0.03 %/s for engineering builds. PL-6's 10⁷-position and ≥90-day
+  release evidence remains a hard pre-launch gate.
+
+Earlier revisions closed M1.5's remaining declared-but-unenforced behavior:
 
 - optional TP/SL are validated and snapshotted at entry;
 - TP/SL use consecutive-authoritative-tick crossings, with stop-loss winning a
@@ -46,7 +59,7 @@ Rev. 4 closes M1.5's remaining declared-but-unenforced behavior:
 - the Gateway/UI carries the values and engine rejection copy without duplicating
   stricter client-side rules.
 
-Six architecture decisions are recorded in `docs/decisions/`:
+Seven architecture decisions are recorded in `docs/decisions/`:
 
 - **0001** — monorepo layout and toolchain
 - **0002** — pure engine and the event seam; also settles crush-line authority
@@ -57,6 +70,8 @@ Six architecture decisions are recorded in `docs/decisions/`:
 - **0005** — auto-order crossings, entry validation precedence and cooldown
 - **0006** — deterministic replay selection, published transform initialization,
   and recorded BTC fixture provenance
+- **0007** — deterministic Monte-Carlo streams, reference behaviors, statistics,
+  simulator selection versus replay stress evidence, and release evidence tiers
 
 M1.6 adds the sixth decision and the feed evidence bundle: `@crush/feed` now
 owns the TypeScript feed base, simulator, replay source, interpolation buffer,
@@ -142,10 +157,26 @@ current authoritative level. Stop-loss wins if both TP and SL somehow qualify,
 while crush wins all same-tick conflicts. Every trigger starts the ordinary
 500 ms ascent, and PL-4's unconditional payout clamp remains separate.
 
+**M1.7 — deterministic Monte-Carlo calibration.** The package uses the real
+settlement lifecycle, explicitly seeded simulator rounds and unchanged recorded
+replay ticks. Its four MC-3 behavior models are random hold, take-profit,
+stop-loss and max-leverage. Candidate selection uses an equal-weight simulator
+portfolio; replay results are stress evidence because the M1.6 calm/flash-crash
+fixtures are selected regimes rather than a representative market sample.
+
+Seed `crush-depth-m1.7-reference-v1` selects **θ = 0.03 %/s** at 96.5437 % RTP
+over 4,000 selection positions (0.0437 percentage points from target). A
+disjoint 20,000-position simulator cohort reports 96.9492 %, with a two-sided
+99 % interval of 96.0046–97.8938 %. The canonical JSON retains every candidate
+and statistic; the compact Markdown report presents the review surface.
+
 ### Open
 
-**θ is not calibrated.** 0.25 %/s is the spec's opening value. M1.7 sets the real
-one against RTP 96.5 %. Every RTP number quoted anywhere today is provisional.
+**Release-scale θ validation remains open.** M1.7's 0.03 %/s value and RTP are
+engineering-preliminary. PL-6 still requires at least 10⁷ simulator positions
+and at least 90 days of representative BTC. A production player mixture and
+representative historical weighting must be versioned inputs, never inferred
+from the two M1.6 stress fixtures.
 
 **Which max-win bound binds is a live question, not a Phase 2 provision.** The
 two bounds are equal at stake $200. `CFG.STAKES` runs $1…$250, so below $200 the
@@ -178,7 +209,7 @@ shipping legal later.
 | M1.4 | Oxygen, round timings, entry cutoff | **Done** |
 | M1.5 | Risk caps and auto-orders | **Done** |
 | M1.6 | `ReplayIndexSource` + recorded BTC data | **Done** |
-| M1.7 | Monte-Carlo harness — calibrate θ | Not started |
+| M1.7 | Monte-Carlo harness — calibrate θ | **Done** |
 | M1.8 | PixiJS v8 scene port | Not started |
 
 **M1.5 — Risk caps and auto-orders** *(done)*
@@ -219,16 +250,27 @@ fixture provenance and checksum are committed; fresh runs and different pacing
 produce byte-identical tick/event/settlement artifacts; the full test,
 coverage, typecheck, and build gates pass.
 
-**M1.7 — Monte-Carlo harness, calibrate θ to 96.5 % RTP**
+**M1.7 — Monte-Carlo harness, calibrate θ to 96.5 % RTP** *(done)*
 
-`packages/sim` runs the real engine across behaviour models (instant-cashout,
-greedy, stop-loss-disciplined, panic) and outputs an RTP report artifact. θ is
-chosen by this harness, not by intuition; the report is also the first document a
-regulator will ask for. It should also report **how often the max-win cap actually
-binds**, which is the number that matters for RTP.
+`packages/sim` runs the real engine across the MC-3 random-hold, take-profit,
+stop-loss and max-leverage models. The frozen equal-weight simulator portfolio
+is the calibration population; behavior cells remain visible because optional
+stopping makes their conditional RTPs legitimately different. The selected
+M1.6 replay regimes are reported separately and cannot be weighted into a
+population RTP without representative historical data.
 
-*Exit criteria:* reproducible report committed as an artifact. RTP within ±0.2 %
-of 96.5 % across all models. Variance and max-exposure figures included.
+*Delivered:* MC-1–MC-8 acceptance criteria; ADR 0007; seeded and injected
+simulator randomness; unchanged ReplayIndexSource mapping; deterministic
+candidate selection and lower-theta tie-break; 50-batch Student-t statistics;
+cap-bind, extrema and exposure evidence; canonical JSON and compact Markdown
+artifacts; engineering θ = 0.03 %/s.
+
+*Exit criteria satisfied:* the selected portfolio estimate is 96.5437 %, within
+0.2 percentage points of 96.5 %; the disjoint report cohort's 99 % interval
+contains the target; all behavior/source cells report variance, uncertainty and
+max exposure; identical inputs reproduce byte-identical canonical data and are
+invariant to iteration/execution order. PL-6's larger release run remains a
+separate pre-launch criterion, not unfinished M1.7 implementation.
 
 **M1.8 — PixiJS v8 scene port**
 
@@ -312,19 +354,15 @@ milestone.
 
 ---
 
-## Next four steps
+## Next steps after M1.7
 
-1. **Run the Monte-Carlo harness and calibrate θ (M1.7).** *Why first:* θ is the
-   single business dial and is currently a placeholder. It needs M1.6's data and
-   M1.5's complete rule set to produce a number worth committing to.
-
-2. **Add Close Calls to the fake social feed.** This is the remaining small
+1. **Add Close Calls to the fake social feed.** This is the remaining small
    Phase 1.5 gameplay task and depends only on settled engine facts.
 
-3. **Port the scene to PixiJS v8 (M1.8).** Keep it last so renderer work cannot
+2. **Port the scene to PixiJS v8 (M1.8).** Keep it last so renderer work cannot
    choose or conceal authority-side game rules.
 
-Alongside all four, and not blocked by any of them: **open the licensing
+Alongside those steps, and not blocked by either: **open the licensing
 conversation** (M3.1). It is the longest lead time in the plan and the only item
 that can invalidate the design.
 
@@ -338,7 +376,7 @@ Ordered by how expensive they become if discovered late.
 |---|---|---|
 | Legal classification: gaming or derivative? | **Existential** | A BTC-price-driven payout may be regulated as a financial product rather than gaming in some jurisdictions, invalidating the licensing route entirely. Get a written legal opinion during Phase 1.5 — before Phase 2 is built on the assumption. |
 | Correlated exposure across all players | **High** | Unlike RNG crash games, one real price move resolves every position in the same direction simultaneously. Aggregate exposure caps and a kill switch are Phase 2 requirements, not Phase 5 polish. |
-| θ uncalibrated — RTP is currently unknown | **High** | 0.25 %/s is a placeholder. RTP is the number a regulator checks first. Let M1.7 set θ and keep the report as a committed artifact. Quote no RTP figure until then. |
+| Release-scale θ evidence pending | **High** | M1.7 selects 0.03 %/s and commits engineering evidence, but PL-6 still requires 10⁷ positions plus ≥90 representative BTC days. Do not market the preliminary report as certified RTP. |
 | Declared-but-unenforced criteria | **Medium** | The known M1.5 gaps are closed. Preserve the tests-first rule and audit future tests for assertions that merely ratify current behavior. |
 | Simulator-shaped assumptions leaking into design | **Medium** | `SIM-ONLY` fencing is good discipline, but anti-run pressure and squalls make rounds dramatic in ways real BTC will not reliably reproduce. M1.6 now provides the replay comparison; keep it in the M1.7 calibration evidence. |
 | Responsible-play controls enforced client-side | **Medium** | Fine for a prototype, not compliant for real money. Budget the server-side move into Phase 2 rather than treating it as a Phase 3 surprise. |
@@ -348,5 +386,5 @@ Ordered by how expensive they become if discovered late.
 
 ---
 
-*Crush Depth · delivery plan · Rev. 5 — M1.1 through M1.6 complete; M1.7 is
-next.*
+*Crush Depth · delivery plan · Rev. 6 — M1.1 through M1.7 complete; Close Calls
+and M1.8 remain unstarted.*

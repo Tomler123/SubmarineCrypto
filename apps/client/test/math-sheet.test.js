@@ -10,7 +10,7 @@ import { CFG } from '../src/config/constants.js';
    This file exists because the sheet went stale once already. It was written
    for the pre-M1.4 engine, and it survived the milestone that added the house
    edge: it kept promising "No house edge is applied in this build" while the
-   engine drained 0.25%/s off every open position. Nothing caught it, because
+   engine drained oxygen off every open position. Nothing caught it, because
    the sheet is static markup that no module imports and no test read.
 
    UI-5 requires the sheet to state the formula, θ, the ascent rule and the
@@ -65,7 +65,7 @@ describe('#mathSheet describes the M1.4 engine (UI-5)', () => {
 
   it('states θ at the rate the engine actually charges', () => {
     // CFG.THETA_PER_S is a per-second fraction; the sheet quotes it as a
-    // percent. 0.0025 -> "0.25%".
+    // percent. 0.0003 -> "0.03%".
     const pct = `${+(CFG.THETA_PER_S * 100).toFixed(4)}%`;
     expect(text, `sheet must quote θ as ${pct} per second`).toContain(`${pct} per second`);
     expect(text).toMatch(new RegExp(`${pct.replace('.', '\.')}\s*/\s*s`));
@@ -86,9 +86,11 @@ describe('#mathSheet describes the M1.4 engine (UI-5)', () => {
     expect(text).toMatch(/crush line/i);
     expect(text).toMatch(/creep/i);
     expect(text).toMatch(/1 \/ leverage/i);
-    // The worked example: 10× on an entry of 1000 starts at 900 and creeps.
+    // The worked example: 10× on an entry of 1000 starts at 900 and uses the
+    // configured theta for its 60-second creep, rather than freezing old copy.
+    const lineAt60 = 1000 * (1 - (1 - CFG.THETA_PER_S * 60) / 10);
     expect(text).toContain('900');
-    expect(text).toContain('915');
+    expect(text).toContain(`${+lineAt60.toFixed(4)}`);
     expect(text).toMatch(/capped at (your|the) stake/i);
   });
 

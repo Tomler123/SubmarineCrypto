@@ -1,0 +1,1269 @@
+{
+  "artifactVersion": "m1.7-engineering-v1",
+  "status": "engineering-preliminary",
+  "seedDerivation": "fnv1a32/mulberry32-v1",
+  "streamCohorts": {
+    "selection": "master",
+    "report": "master/report"
+  },
+  "masterSeed": "crush-depth-m1.7-reference-v1",
+  "targetRtp": 0.965,
+  "selectedTheta": 0.0003,
+  "sampleCounts": {
+    "selectionPerBehaviorCandidate": 1000,
+    "reportPerCell": 5000,
+    "batchCount": 50
+  },
+  "behaviorParameters": {
+    "stakeCents": 500,
+    "entryWindowSeconds": 85,
+    "manualHoldSeconds": {
+      "minimum": 5,
+      "maximum": 20
+    },
+    "takeProfitOffset": {
+      "minimum": 0.1,
+      "maximum": 0.9
+    },
+    "stopLoss": {
+      "minimum": 0.25,
+      "maximum": 0.9
+    },
+    "allowedLeverages": [
+      2,
+      5,
+      10,
+      25
+    ]
+  },
+  "candidateResults": [
+    {
+      "theta": 0,
+      "simulatorPortfolioRtp": 0.9736389999999999,
+      "absoluteError": 0.008638999999999952,
+      "behaviorRtps": {
+        "random-hold": 0.995712,
+        "take-profit": 0.990308,
+        "stop-loss": 0.9498,
+        "max-leverage": 0.958736
+      }
+    },
+    {
+      "theta": 0.00005,
+      "simulatorPortfolioRtp": 0.97227,
+      "absoluteError": 0.007269999999999999,
+      "behaviorRtps": {
+        "random-hold": 0.995098,
+        "take-profit": 0.98785,
+        "stop-loss": 0.947892,
+        "max-leverage": 0.95824
+      }
+    },
+    {
+      "theta": 0.0001,
+      "simulatorPortfolioRtp": 0.971049,
+      "absoluteError": 0.006049000000000082,
+      "behaviorRtps": {
+        "random-hold": 0.994548,
+        "take-profit": 0.985752,
+        "stop-loss": 0.94616,
+        "max-leverage": 0.957736
+      }
+    },
+    {
+      "theta": 0.00015,
+      "simulatorPortfolioRtp": 0.9696745,
+      "absoluteError": 0.004674500000000026,
+      "behaviorRtps": {
+        "random-hold": 0.993946,
+        "take-profit": 0.983212,
+        "stop-loss": 0.944302,
+        "max-leverage": 0.957238
+      }
+    },
+    {
+      "theta": 0.0002,
+      "simulatorPortfolioRtp": 0.9682409999999999,
+      "absoluteError": 0.0032409999999999384,
+      "behaviorRtps": {
+        "random-hold": 0.993366,
+        "take-profit": 0.980336,
+        "stop-loss": 0.942528,
+        "max-leverage": 0.956734
+      }
+    },
+    {
+      "theta": 0.00025,
+      "simulatorPortfolioRtp": 0.967363,
+      "absoluteError": 0.002363000000000004,
+      "behaviorRtps": {
+        "random-hold": 0.992784,
+        "take-profit": 0.979402,
+        "stop-loss": 0.941022,
+        "max-leverage": 0.956244
+      }
+    },
+    {
+      "theta": 0.0003,
+      "simulatorPortfolioRtp": 0.9654370000000001,
+      "absoluteError": 0.00043700000000013173,
+      "behaviorRtps": {
+        "random-hold": 0.992162,
+        "take-profit": 0.975394,
+        "stop-loss": 0.938436,
+        "max-leverage": 0.955756
+      }
+    },
+    {
+      "theta": 0.00035,
+      "simulatorPortfolioRtp": 0.9643585,
+      "absoluteError": 0.0006414999999999615,
+      "behaviorRtps": {
+        "random-hold": 0.991578,
+        "take-profit": 0.97373,
+        "stop-loss": 0.936846,
+        "max-leverage": 0.95528
+      }
+    },
+    {
+      "theta": 0.0004,
+      "simulatorPortfolioRtp": 0.9631005,
+      "absoluteError": 0.001899499999999943,
+      "behaviorRtps": {
+        "random-hold": 0.99099,
+        "take-profit": 0.9718,
+        "stop-loss": 0.935136,
+        "max-leverage": 0.954476
+      }
+    },
+    {
+      "theta": 0.00045,
+      "simulatorPortfolioRtp": 0.9617129999999999,
+      "absoluteError": 0.00328700000000004,
+      "behaviorRtps": {
+        "random-hold": 0.990408,
+        "take-profit": 0.969374,
+        "stop-loss": 0.93305,
+        "max-leverage": 0.95402
+      }
+    },
+    {
+      "theta": 0.0005,
+      "simulatorPortfolioRtp": 0.960479,
+      "absoluteError": 0.004520999999999997,
+      "behaviorRtps": {
+        "random-hold": 0.989804,
+        "take-profit": 0.967308,
+        "stop-loss": 0.931332,
+        "max-leverage": 0.953472
+      }
+    },
+    {
+      "theta": 0.00055,
+      "simulatorPortfolioRtp": 0.9595175,
+      "absoluteError": 0.005482499999999946,
+      "behaviorRtps": {
+        "random-hold": 0.989198,
+        "take-profit": 0.965976,
+        "stop-loss": 0.929878,
+        "max-leverage": 0.953018
+      }
+    },
+    {
+      "theta": 0.0006,
+      "simulatorPortfolioRtp": 0.9576965,
+      "absoluteError": 0.007303500000000018,
+      "behaviorRtps": {
+        "random-hold": 0.988622,
+        "take-profit": 0.961452,
+        "stop-loss": 0.928194,
+        "max-leverage": 0.952518
+      }
+    },
+    {
+      "theta": 0.00065,
+      "simulatorPortfolioRtp": 0.9566945000000001,
+      "absoluteError": 0.008305499999999855,
+      "behaviorRtps": {
+        "random-hold": 0.98804,
+        "take-profit": 0.95952,
+        "stop-loss": 0.92717,
+        "max-leverage": 0.952048
+      }
+    },
+    {
+      "theta": 0.0007,
+      "simulatorPortfolioRtp": 0.9554980000000001,
+      "absoluteError": 0.0095019999999999,
+      "behaviorRtps": {
+        "random-hold": 0.987438,
+        "take-profit": 0.957862,
+        "stop-loss": 0.925184,
+        "max-leverage": 0.951508
+      }
+    },
+    {
+      "theta": 0.00075,
+      "simulatorPortfolioRtp": 0.954399,
+      "absoluteError": 0.010600999999999972,
+      "behaviorRtps": {
+        "random-hold": 0.986842,
+        "take-profit": 0.95605,
+        "stop-loss": 0.923684,
+        "max-leverage": 0.95102
+      }
+    },
+    {
+      "theta": 0.0008,
+      "simulatorPortfolioRtp": 0.952715,
+      "absoluteError": 0.01228499999999999,
+      "behaviorRtps": {
+        "random-hold": 0.986244,
+        "take-profit": 0.952524,
+        "stop-loss": 0.921544,
+        "max-leverage": 0.950548
+      }
+    },
+    {
+      "theta": 0.00085,
+      "simulatorPortfolioRtp": 0.951568,
+      "absoluteError": 0.013432,
+      "behaviorRtps": {
+        "random-hold": 0.98566,
+        "take-profit": 0.950892,
+        "stop-loss": 0.91967,
+        "max-leverage": 0.95005
+      }
+    },
+    {
+      "theta": 0.0009,
+      "simulatorPortfolioRtp": 0.9504020000000001,
+      "absoluteError": 0.014597999999999889,
+      "behaviorRtps": {
+        "random-hold": 0.98507,
+        "take-profit": 0.949114,
+        "stop-loss": 0.917886,
+        "max-leverage": 0.949538
+      }
+    },
+    {
+      "theta": 0.00095,
+      "simulatorPortfolioRtp": 0.949316,
+      "absoluteError": 0.01568399999999992,
+      "behaviorRtps": {
+        "random-hold": 0.98449,
+        "take-profit": 0.947534,
+        "stop-loss": 0.916156,
+        "max-leverage": 0.949084
+      }
+    },
+    {
+      "theta": 0.001,
+      "simulatorPortfolioRtp": 0.947836,
+      "absoluteError": 0.017163999999999957,
+      "behaviorRtps": {
+        "random-hold": 0.983894,
+        "take-profit": 0.945604,
+        "stop-loss": 0.914186,
+        "max-leverage": 0.94766
+      }
+    },
+    {
+      "theta": 0.00105,
+      "simulatorPortfolioRtp": 0.9462750000000001,
+      "absoluteError": 0.01872499999999988,
+      "behaviorRtps": {
+        "random-hold": 0.983324,
+        "take-profit": 0.942148,
+        "stop-loss": 0.912494,
+        "max-leverage": 0.947134
+      }
+    },
+    {
+      "theta": 0.0011,
+      "simulatorPortfolioRtp": 0.945197,
+      "absoluteError": 0.019803000000000015,
+      "behaviorRtps": {
+        "random-hold": 0.982684,
+        "take-profit": 0.940102,
+        "stop-loss": 0.911352,
+        "max-leverage": 0.94665
+      }
+    },
+    {
+      "theta": 0.00115,
+      "simulatorPortfolioRtp": 0.943595,
+      "absoluteError": 0.021405000000000007,
+      "behaviorRtps": {
+        "random-hold": 0.982134,
+        "take-profit": 0.937982,
+        "stop-loss": 0.909524,
+        "max-leverage": 0.94474
+      }
+    },
+    {
+      "theta": 0.0012,
+      "simulatorPortfolioRtp": 0.9425335,
+      "absoluteError": 0.022466499999999945,
+      "behaviorRtps": {
+        "random-hold": 0.981524,
+        "take-profit": 0.936414,
+        "stop-loss": 0.907888,
+        "max-leverage": 0.944308
+      }
+    },
+    {
+      "theta": 0.00125,
+      "simulatorPortfolioRtp": 0.941424,
+      "absoluteError": 0.02357599999999993,
+      "behaviorRtps": {
+        "random-hold": 0.980836,
+        "take-profit": 0.934784,
+        "stop-loss": 0.906318,
+        "max-leverage": 0.943758
+      }
+    },
+    {
+      "theta": 0.0013,
+      "simulatorPortfolioRtp": 0.9402689999999999,
+      "absoluteError": 0.02473100000000006,
+      "behaviorRtps": {
+        "random-hold": 0.980256,
+        "take-profit": 0.933198,
+        "stop-loss": 0.90489,
+        "max-leverage": 0.942732
+      }
+    },
+    {
+      "theta": 0.00135,
+      "simulatorPortfolioRtp": 0.9392385,
+      "absoluteError": 0.025761499999999993,
+      "behaviorRtps": {
+        "random-hold": 0.979632,
+        "take-profit": 0.931626,
+        "stop-loss": 0.903462,
+        "max-leverage": 0.942234
+      }
+    },
+    {
+      "theta": 0.0014,
+      "simulatorPortfolioRtp": 0.9382904999999999,
+      "absoluteError": 0.026709500000000053,
+      "behaviorRtps": {
+        "random-hold": 0.97907,
+        "take-profit": 0.930734,
+        "stop-loss": 0.90162,
+        "max-leverage": 0.941738
+      }
+    },
+    {
+      "theta": 0.00145,
+      "simulatorPortfolioRtp": 0.9373385000000001,
+      "absoluteError": 0.027661499999999895,
+      "behaviorRtps": {
+        "random-hold": 0.978434,
+        "take-profit": 0.929114,
+        "stop-loss": 0.90054,
+        "max-leverage": 0.941266
+      }
+    },
+    {
+      "theta": 0.0015,
+      "simulatorPortfolioRtp": 0.936256,
+      "absoluteError": 0.028743999999999992,
+      "behaviorRtps": {
+        "random-hold": 0.97789,
+        "take-profit": 0.927288,
+        "stop-loss": 0.899056,
+        "max-leverage": 0.94079
+      }
+    },
+    {
+      "theta": 0.00155,
+      "simulatorPortfolioRtp": 0.9347815,
+      "absoluteError": 0.030218499999999926,
+      "behaviorRtps": {
+        "random-hold": 0.977286,
+        "take-profit": 0.924794,
+        "stop-loss": 0.897576,
+        "max-leverage": 0.93947
+      }
+    },
+    {
+      "theta": 0.0016,
+      "simulatorPortfolioRtp": 0.933695,
+      "absoluteError": 0.031304999999999916,
+      "behaviorRtps": {
+        "random-hold": 0.97667,
+        "take-profit": 0.923064,
+        "stop-loss": 0.896052,
+        "max-leverage": 0.938994
+      }
+    },
+    {
+      "theta": 0.00165,
+      "simulatorPortfolioRtp": 0.932331,
+      "absoluteError": 0.03266899999999995,
+      "behaviorRtps": {
+        "random-hold": 0.976104,
+        "take-profit": 0.921572,
+        "stop-loss": 0.893982,
+        "max-leverage": 0.937666
+      }
+    },
+    {
+      "theta": 0.0017,
+      "simulatorPortfolioRtp": 0.93124,
+      "absoluteError": 0.03376000000000001,
+      "behaviorRtps": {
+        "random-hold": 0.975534,
+        "take-profit": 0.91988,
+        "stop-loss": 0.892406,
+        "max-leverage": 0.93714
+      }
+    },
+    {
+      "theta": 0.00175,
+      "simulatorPortfolioRtp": 0.9300465,
+      "absoluteError": 0.03495349999999997,
+      "behaviorRtps": {
+        "random-hold": 0.974916,
+        "take-profit": 0.918012,
+        "stop-loss": 0.890598,
+        "max-leverage": 0.93666
+      }
+    },
+    {
+      "theta": 0.0018,
+      "simulatorPortfolioRtp": 0.9288015,
+      "absoluteError": 0.03619850000000002,
+      "behaviorRtps": {
+        "random-hold": 0.97434,
+        "take-profit": 0.916006,
+        "stop-loss": 0.88866,
+        "max-leverage": 0.9362
+      }
+    },
+    {
+      "theta": 0.00185,
+      "simulatorPortfolioRtp": 0.928061,
+      "absoluteError": 0.036938999999999944,
+      "behaviorRtps": {
+        "random-hold": 0.973738,
+        "take-profit": 0.914308,
+        "stop-loss": 0.888486,
+        "max-leverage": 0.935712
+      }
+    },
+    {
+      "theta": 0.0019,
+      "simulatorPortfolioRtp": 0.927049,
+      "absoluteError": 0.03795099999999996,
+      "behaviorRtps": {
+        "random-hold": 0.97314,
+        "take-profit": 0.912784,
+        "stop-loss": 0.887066,
+        "max-leverage": 0.935206
+      }
+    },
+    {
+      "theta": 0.00195,
+      "simulatorPortfolioRtp": 0.9261815,
+      "absoluteError": 0.03881849999999998,
+      "behaviorRtps": {
+        "random-hold": 0.972574,
+        "take-profit": 0.91115,
+        "stop-loss": 0.88627,
+        "max-leverage": 0.934732
+      }
+    },
+    {
+      "theta": 0.002,
+      "simulatorPortfolioRtp": 0.9249805,
+      "absoluteError": 0.040019499999999986,
+      "behaviorRtps": {
+        "random-hold": 0.971954,
+        "take-profit": 0.90911,
+        "stop-loss": 0.884868,
+        "max-leverage": 0.93399
+      }
+    },
+    {
+      "theta": 0.00205,
+      "simulatorPortfolioRtp": 0.9241299999999999,
+      "absoluteError": 0.04087000000000007,
+      "behaviorRtps": {
+        "random-hold": 0.971394,
+        "take-profit": 0.90845,
+        "stop-loss": 0.883146,
+        "max-leverage": 0.93353
+      }
+    },
+    {
+      "theta": 0.0021,
+      "simulatorPortfolioRtp": 0.9225760000000001,
+      "absoluteError": 0.042423999999999906,
+      "behaviorRtps": {
+        "random-hold": 0.970814,
+        "take-profit": 0.905876,
+        "stop-loss": 0.880612,
+        "max-leverage": 0.933002
+      }
+    },
+    {
+      "theta": 0.00215,
+      "simulatorPortfolioRtp": 0.9214345,
+      "absoluteError": 0.043565499999999924,
+      "behaviorRtps": {
+        "random-hold": 0.970022,
+        "take-profit": 0.904088,
+        "stop-loss": 0.879112,
+        "max-leverage": 0.932516
+      }
+    },
+    {
+      "theta": 0.0022,
+      "simulatorPortfolioRtp": 0.9202269999999999,
+      "absoluteError": 0.04477300000000006,
+      "behaviorRtps": {
+        "random-hold": 0.96938,
+        "take-profit": 0.902026,
+        "stop-loss": 0.87802,
+        "max-leverage": 0.931482
+      }
+    },
+    {
+      "theta": 0.00225,
+      "simulatorPortfolioRtp": 0.9191069999999999,
+      "absoluteError": 0.04589300000000007,
+      "behaviorRtps": {
+        "random-hold": 0.968816,
+        "take-profit": 0.900314,
+        "stop-loss": 0.87628,
+        "max-leverage": 0.931018
+      }
+    },
+    {
+      "theta": 0.0023,
+      "simulatorPortfolioRtp": 0.9182505000000001,
+      "absoluteError": 0.04674949999999989,
+      "behaviorRtps": {
+        "random-hold": 0.968256,
+        "take-profit": 0.898634,
+        "stop-loss": 0.875602,
+        "max-leverage": 0.93051
+      }
+    },
+    {
+      "theta": 0.00235,
+      "simulatorPortfolioRtp": 0.9169375,
+      "absoluteError": 0.04806250000000001,
+      "behaviorRtps": {
+        "random-hold": 0.96766,
+        "take-profit": 0.895876,
+        "stop-loss": 0.874174,
+        "max-leverage": 0.93004
+      }
+    },
+    {
+      "theta": 0.0024,
+      "simulatorPortfolioRtp": 0.9158149999999999,
+      "absoluteError": 0.049185000000000034,
+      "behaviorRtps": {
+        "random-hold": 0.967078,
+        "take-profit": 0.894352,
+        "stop-loss": 0.87227,
+        "max-leverage": 0.92956
+      }
+    },
+    {
+      "theta": 0.00245,
+      "simulatorPortfolioRtp": 0.9149025,
+      "absoluteError": 0.05009750000000002,
+      "behaviorRtps": {
+        "random-hold": 0.96647,
+        "take-profit": 0.893196,
+        "stop-loss": 0.870908,
+        "max-leverage": 0.929036
+      }
+    },
+    {
+      "theta": 0.0025,
+      "simulatorPortfolioRtp": 0.9137565000000001,
+      "absoluteError": 0.051243499999999886,
+      "behaviorRtps": {
+        "random-hold": 0.96586,
+        "take-profit": 0.891338,
+        "stop-loss": 0.86928,
+        "max-leverage": 0.928548
+      }
+    },
+    {
+      "theta": 0.00255,
+      "simulatorPortfolioRtp": 0.912697,
+      "absoluteError": 0.05230299999999999,
+      "behaviorRtps": {
+        "random-hold": 0.965276,
+        "take-profit": 0.889452,
+        "stop-loss": 0.86798,
+        "max-leverage": 0.92808
+      }
+    },
+    {
+      "theta": 0.0026,
+      "simulatorPortfolioRtp": 0.911288,
+      "absoluteError": 0.05371199999999998,
+      "behaviorRtps": {
+        "random-hold": 0.964684,
+        "take-profit": 0.887716,
+        "stop-loss": 0.865154,
+        "max-leverage": 0.927598
+      }
+    },
+    {
+      "theta": 0.00265,
+      "simulatorPortfolioRtp": 0.9104559999999999,
+      "absoluteError": 0.05454400000000004,
+      "behaviorRtps": {
+        "random-hold": 0.96412,
+        "take-profit": 0.886346,
+        "stop-loss": 0.864252,
+        "max-leverage": 0.927106
+      }
+    },
+    {
+      "theta": 0.0027,
+      "simulatorPortfolioRtp": 0.909455,
+      "absoluteError": 0.055544999999999956,
+      "behaviorRtps": {
+        "random-hold": 0.963528,
+        "take-profit": 0.884962,
+        "stop-loss": 0.862702,
+        "max-leverage": 0.926628
+      }
+    },
+    {
+      "theta": 0.00275,
+      "simulatorPortfolioRtp": 0.9083140000000001,
+      "absoluteError": 0.0566859999999999,
+      "behaviorRtps": {
+        "random-hold": 0.962906,
+        "take-profit": 0.88326,
+        "stop-loss": 0.860958,
+        "max-leverage": 0.926132
+      }
+    },
+    {
+      "theta": 0.0028,
+      "simulatorPortfolioRtp": 0.9073180000000001,
+      "absoluteError": 0.0576819999999999,
+      "behaviorRtps": {
+        "random-hold": 0.96236,
+        "take-profit": 0.881912,
+        "stop-loss": 0.859576,
+        "max-leverage": 0.925424
+      }
+    },
+    {
+      "theta": 0.00285,
+      "simulatorPortfolioRtp": 0.9061094999999999,
+      "absoluteError": 0.05889050000000007,
+      "behaviorRtps": {
+        "random-hold": 0.961738,
+        "take-profit": 0.880246,
+        "stop-loss": 0.85802,
+        "max-leverage": 0.924434
+      }
+    },
+    {
+      "theta": 0.0029,
+      "simulatorPortfolioRtp": 0.9051295,
+      "absoluteError": 0.05987049999999994,
+      "behaviorRtps": {
+        "random-hold": 0.961158,
+        "take-profit": 0.878596,
+        "stop-loss": 0.856788,
+        "max-leverage": 0.923976
+      }
+    },
+    {
+      "theta": 0.00295,
+      "simulatorPortfolioRtp": 0.904074,
+      "absoluteError": 0.060925999999999925,
+      "behaviorRtps": {
+        "random-hold": 0.96054,
+        "take-profit": 0.8773,
+        "stop-loss": 0.854982,
+        "max-leverage": 0.923474
+      }
+    },
+    {
+      "theta": 0.003,
+      "simulatorPortfolioRtp": 0.9029015,
+      "absoluteError": 0.062098499999999945,
+      "behaviorRtps": {
+        "random-hold": 0.959978,
+        "take-profit": 0.87548,
+        "stop-loss": 0.85317,
+        "max-leverage": 0.922978
+      }
+    },
+    {
+      "theta": 0.00305,
+      "simulatorPortfolioRtp": 0.9017495,
+      "absoluteError": 0.06325049999999999,
+      "behaviorRtps": {
+        "random-hold": 0.959382,
+        "take-profit": 0.873518,
+        "stop-loss": 0.851582,
+        "max-leverage": 0.922516
+      }
+    },
+    {
+      "theta": 0.0031,
+      "simulatorPortfolioRtp": 0.900043,
+      "absoluteError": 0.06495699999999993,
+      "behaviorRtps": {
+        "random-hold": 0.958766,
+        "take-profit": 0.86978,
+        "stop-loss": 0.849668,
+        "max-leverage": 0.921958
+      }
+    },
+    {
+      "theta": 0.00315,
+      "simulatorPortfolioRtp": 0.8992225,
+      "absoluteError": 0.06577749999999993,
+      "behaviorRtps": {
+        "random-hold": 0.958212,
+        "take-profit": 0.868224,
+        "stop-loss": 0.84903,
+        "max-leverage": 0.921424
+      }
+    },
+    {
+      "theta": 0.0032,
+      "simulatorPortfolioRtp": 0.898058,
+      "absoluteError": 0.06694199999999995,
+      "behaviorRtps": {
+        "random-hold": 0.95761,
+        "take-profit": 0.866406,
+        "stop-loss": 0.847268,
+        "max-leverage": 0.920948
+      }
+    },
+    {
+      "theta": 0.00325,
+      "simulatorPortfolioRtp": 0.8970295,
+      "absoluteError": 0.06797049999999993,
+      "behaviorRtps": {
+        "random-hold": 0.956558,
+        "take-profit": 0.864706,
+        "stop-loss": 0.846386,
+        "max-leverage": 0.920468
+      }
+    },
+    {
+      "theta": 0.0033,
+      "simulatorPortfolioRtp": 0.8957795000000001,
+      "absoluteError": 0.06922049999999991,
+      "behaviorRtps": {
+        "random-hold": 0.955954,
+        "take-profit": 0.862262,
+        "stop-loss": 0.84492,
+        "max-leverage": 0.919982
+      }
+    },
+    {
+      "theta": 0.00335,
+      "simulatorPortfolioRtp": 0.894794,
+      "absoluteError": 0.07020599999999999,
+      "behaviorRtps": {
+        "random-hold": 0.955362,
+        "take-profit": 0.860648,
+        "stop-loss": 0.84366,
+        "max-leverage": 0.919506
+      }
+    },
+    {
+      "theta": 0.0034,
+      "simulatorPortfolioRtp": 0.893632,
+      "absoluteError": 0.07136799999999999,
+      "behaviorRtps": {
+        "random-hold": 0.95479,
+        "take-profit": 0.858712,
+        "stop-loss": 0.841986,
+        "max-leverage": 0.91904
+      }
+    },
+    {
+      "theta": 0.00345,
+      "simulatorPortfolioRtp": 0.8924654999999999,
+      "absoluteError": 0.07253450000000006,
+      "behaviorRtps": {
+        "random-hold": 0.954238,
+        "take-profit": 0.85653,
+        "stop-loss": 0.840544,
+        "max-leverage": 0.91855
+      }
+    },
+    {
+      "theta": 0.0035,
+      "simulatorPortfolioRtp": 0.891431,
+      "absoluteError": 0.073569,
+      "behaviorRtps": {
+        "random-hold": 0.95363,
+        "take-profit": 0.854782,
+        "stop-loss": 0.839272,
+        "max-leverage": 0.91804
+      }
+    },
+    {
+      "theta": 0.00355,
+      "simulatorPortfolioRtp": 0.8902410000000001,
+      "absoluteError": 0.07475899999999991,
+      "behaviorRtps": {
+        "random-hold": 0.95301,
+        "take-profit": 0.853048,
+        "stop-loss": 0.837348,
+        "max-leverage": 0.917558
+      }
+    },
+    {
+      "theta": 0.0036,
+      "simulatorPortfolioRtp": 0.8892829999999999,
+      "absoluteError": 0.07571700000000003,
+      "behaviorRtps": {
+        "random-hold": 0.95239,
+        "take-profit": 0.851374,
+        "stop-loss": 0.836278,
+        "max-leverage": 0.91709
+      }
+    },
+    {
+      "theta": 0.00365,
+      "simulatorPortfolioRtp": 0.8882185,
+      "absoluteError": 0.07678149999999995,
+      "behaviorRtps": {
+        "random-hold": 0.951792,
+        "take-profit": 0.849626,
+        "stop-loss": 0.834842,
+        "max-leverage": 0.916614
+      }
+    },
+    {
+      "theta": 0.0037,
+      "simulatorPortfolioRtp": 0.8870340000000001,
+      "absoluteError": 0.07796599999999987,
+      "behaviorRtps": {
+        "random-hold": 0.9512,
+        "take-profit": 0.846906,
+        "stop-loss": 0.833926,
+        "max-leverage": 0.916104
+      }
+    },
+    {
+      "theta": 0.00375,
+      "simulatorPortfolioRtp": 0.8862040000000001,
+      "absoluteError": 0.07879599999999987,
+      "behaviorRtps": {
+        "random-hold": 0.950566,
+        "take-profit": 0.845284,
+        "stop-loss": 0.833308,
+        "max-leverage": 0.915658
+      }
+    },
+    {
+      "theta": 0.0038,
+      "simulatorPortfolioRtp": 0.885018,
+      "absoluteError": 0.079982,
+      "behaviorRtps": {
+        "random-hold": 0.95,
+        "take-profit": 0.843382,
+        "stop-loss": 0.831518,
+        "max-leverage": 0.915172
+      }
+    },
+    {
+      "theta": 0.00385,
+      "simulatorPortfolioRtp": 0.883939,
+      "absoluteError": 0.08106099999999994,
+      "behaviorRtps": {
+        "random-hold": 0.9494,
+        "take-profit": 0.841624,
+        "stop-loss": 0.83003,
+        "max-leverage": 0.914702
+      }
+    },
+    {
+      "theta": 0.0039,
+      "simulatorPortfolioRtp": 0.8828045,
+      "absoluteError": 0.08219549999999998,
+      "behaviorRtps": {
+        "random-hold": 0.948822,
+        "take-profit": 0.839734,
+        "stop-loss": 0.828512,
+        "max-leverage": 0.91415
+      }
+    },
+    {
+      "theta": 0.00395,
+      "simulatorPortfolioRtp": 0.8817935,
+      "absoluteError": 0.08320649999999996,
+      "behaviorRtps": {
+        "random-hold": 0.948228,
+        "take-profit": 0.838652,
+        "stop-loss": 0.82713,
+        "max-leverage": 0.913164
+      }
+    },
+    {
+      "theta": 0.004,
+      "simulatorPortfolioRtp": 0.88079,
+      "absoluteError": 0.08421000000000001,
+      "behaviorRtps": {
+        "random-hold": 0.947646,
+        "take-profit": 0.837362,
+        "stop-loss": 0.825466,
+        "max-leverage": 0.912686
+      }
+    }
+  ],
+  "portfolioEvidence": {
+    "selectionSimulator": {
+      "positionCount": 4000,
+      "rtp": 0.9654370000000001,
+      "absoluteTargetError": 0.00043700000000013173
+    },
+    "validationSimulator": {
+      "positionCount": 20000,
+      "rtp": 0.969492,
+      "variance": 0.24969415144357343,
+      "standardError": 0.003524757438462965,
+      "confidence99": {
+        "low": 0.9600458193462187,
+        "high": 0.9789381806537814
+      },
+      "absoluteTargetError": 0.0044920000000000515
+    },
+    "replayStress": {
+      "positionCount": 20000,
+      "rtp": 1.1034059,
+      "variance": 0.6713164638683539,
+      "standardError": 0.0051112123959916565,
+      "confidence99": {
+        "low": 1.0897080962517123,
+        "high": 1.1171037037482878
+      }
+    }
+  },
+  "cells": [
+    {
+      "source": "simulator",
+      "datasetId": "simulator/reference-v1",
+      "behaviorId": "random-hold",
+      "theta": 0.0003,
+      "positionCount": 5000,
+      "wageredCents": 2500000,
+      "paidCents": 2480797,
+      "rtp": 0.9923188,
+      "variance": 0.1225655882842174,
+      "standardError": 0.00448357220592178,
+      "confidence99": {
+        "low": 0.9803030418178204,
+        "high": 1.0043345581821796
+      },
+      "batchCount": 50,
+      "settlementReasons": {
+        "crush": 200,
+        "ascent": 4347,
+        "round-end": 453
+      },
+      "ascentCauses": {
+        "manual": 4384,
+        "take-profit": 0,
+        "stop-loss": 0,
+        "max-win": 0,
+        "none": 616
+      },
+      "capBinds": 0,
+      "capBindRate": 0,
+      "maximumPayoutCents": 1618,
+      "maximumLossCents": 500,
+      "peakNotionalCents": 12500
+    },
+    {
+      "source": "simulator",
+      "datasetId": "simulator/reference-v1",
+      "behaviorId": "take-profit",
+      "theta": 0.0003,
+      "positionCount": 5000,
+      "wageredCents": 2500000,
+      "paidCents": 2512836,
+      "rtp": 1.0051344,
+      "variance": 0.247589242185076,
+      "standardError": 0.007396289727109594,
+      "confidence99": {
+        "low": 0.9853126987482819,
+        "high": 1.024956101251718
+      },
+      "batchCount": 50,
+      "settlementReasons": {
+        "crush": 496,
+        "ascent": 972,
+        "round-end": 3532
+      },
+      "ascentCauses": {
+        "manual": 0,
+        "take-profit": 982,
+        "stop-loss": 0,
+        "max-win": 0,
+        "none": 4018
+      },
+      "capBinds": 0,
+      "capBindRate": 0,
+      "maximumPayoutCents": 1436,
+      "maximumLossCents": 500,
+      "peakNotionalCents": 12500
+    },
+    {
+      "source": "simulator",
+      "datasetId": "simulator/reference-v1",
+      "behaviorId": "stop-loss",
+      "theta": 0.0003,
+      "positionCount": 5000,
+      "wageredCents": 2500000,
+      "paidCents": 2324030,
+      "rtp": 0.929612,
+      "variance": 0.1724521718903772,
+      "standardError": 0.006281672596709009,
+      "confidence99": {
+        "low": 0.9127774191267425,
+        "high": 0.9464465808732575
+      },
+      "batchCount": 50,
+      "settlementReasons": {
+        "crush": 38,
+        "ascent": 1773,
+        "round-end": 3189
+      },
+      "ascentCauses": {
+        "manual": 0,
+        "take-profit": 0,
+        "stop-loss": 1819,
+        "max-win": 0,
+        "none": 3181
+      },
+      "capBinds": 0,
+      "capBindRate": 0,
+      "maximumPayoutCents": 2641,
+      "maximumLossCents": 500,
+      "peakNotionalCents": 12500
+    },
+    {
+      "source": "simulator",
+      "datasetId": "simulator/reference-v1",
+      "behaviorId": "max-leverage",
+      "theta": 0.0003,
+      "positionCount": 5000,
+      "wageredCents": 2500000,
+      "paidCents": 2377257,
+      "rtp": 0.9509028,
+      "variance": 0.45259128800976295,
+      "standardError": 0.00892323137241853,
+      "confidence99": {
+        "low": 0.926988968472316,
+        "high": 0.974816631527684
+      },
+      "batchCount": 50,
+      "settlementReasons": {
+        "crush": 937,
+        "ascent": 3696,
+        "round-end": 367
+      },
+      "ascentCauses": {
+        "manual": 3735,
+        "take-profit": 0,
+        "stop-loss": 0,
+        "max-win": 0,
+        "none": 1265
+      },
+      "capBinds": 0,
+      "capBindRate": 0,
+      "maximumPayoutCents": 2177,
+      "maximumLossCents": 500,
+      "peakNotionalCents": 12500
+    },
+    {
+      "source": "replay",
+      "datasetId": "replay/m1.6-fixtures",
+      "behaviorId": "random-hold",
+      "theta": 0.0003,
+      "positionCount": 5000,
+      "wageredCents": 2500000,
+      "paidCents": 2616975,
+      "rtp": 1.04679,
+      "variance": 0.3932378050610137,
+      "standardError": 0.00779549972217095,
+      "confidence99": {
+        "low": 1.0258984351341238,
+        "high": 1.0676815648658764
+      },
+      "batchCount": 50,
+      "settlementReasons": {
+        "crush": 391,
+        "ascent": 3484,
+        "round-end": 1125
+      },
+      "ascentCauses": {
+        "manual": 3575,
+        "take-profit": 0,
+        "stop-loss": 0,
+        "max-win": 0,
+        "none": 1425
+      },
+      "capBinds": 0,
+      "capBindRate": 0,
+      "maximumPayoutCents": 1951,
+      "maximumLossCents": 500,
+      "peakNotionalCents": 12500
+    },
+    {
+      "source": "replay",
+      "datasetId": "replay/m1.6-fixtures",
+      "behaviorId": "take-profit",
+      "theta": 0.0003,
+      "positionCount": 5000,
+      "wageredCents": 2500000,
+      "paidCents": 2401374,
+      "rtp": 0.9605496,
+      "variance": 0.411482034346707,
+      "standardError": 0.008389486817318397,
+      "confidence99": {
+        "low": 0.9380661782461717,
+        "high": 0.9830330217538283
+      },
+      "batchCount": 50,
+      "settlementReasons": {
+        "crush": 842,
+        "ascent": 1285,
+        "round-end": 2873
+      },
+      "ascentCauses": {
+        "manual": 0,
+        "take-profit": 1289,
+        "stop-loss": 0,
+        "max-win": 0,
+        "none": 3711
+      },
+      "capBinds": 0,
+      "capBindRate": 0,
+      "maximumPayoutCents": 1251,
+      "maximumLossCents": 500,
+      "peakNotionalCents": 12500
+    },
+    {
+      "source": "replay",
+      "datasetId": "replay/m1.6-fixtures",
+      "behaviorId": "stop-loss",
+      "theta": 0.0003,
+      "positionCount": 5000,
+      "wageredCents": 2500000,
+      "paidCents": 3034826,
+      "rtp": 1.2139304,
+      "variance": 0.6787694770512542,
+      "standardError": 0.01048702189184327,
+      "confidence99": {
+        "low": 1.1858256849834374,
+        "high": 1.2420351150165625
+      },
+      "batchCount": 50,
+      "settlementReasons": {
+        "crush": 16,
+        "ascent": 1652,
+        "round-end": 3332
+      },
+      "ascentCauses": {
+        "manual": 0,
+        "take-profit": 0,
+        "stop-loss": 1673,
+        "max-win": 0,
+        "none": 3327
+      },
+      "capBinds": 0,
+      "capBindRate": 0,
+      "maximumPayoutCents": 2363,
+      "maximumLossCents": 500,
+      "peakNotionalCents": 12500
+    },
+    {
+      "source": "replay",
+      "datasetId": "replay/m1.6-fixtures",
+      "behaviorId": "max-leverage",
+      "theta": 0.0003,
+      "positionCount": 5000,
+      "wageredCents": 2500000,
+      "paidCents": 2980884,
+      "rtp": 1.1923536,
+      "variance": 1.1584300185707515,
+      "standardError": 0.015273670560430828,
+      "confidence99": {
+        "low": 1.1514208964369752,
+        "high": 1.2332863035630246
+      },
+      "batchCount": 50,
+      "settlementReasons": {
+        "crush": 1296,
+        "ascent": 2941,
+        "round-end": 763
+      },
+      "ascentCauses": {
+        "manual": 3039,
+        "take-profit": 0,
+        "stop-loss": 0,
+        "max-win": 0,
+        "none": 1961
+      },
+      "capBinds": 0,
+      "capBindRate": 0,
+      "maximumPayoutCents": 1951,
+      "maximumLossCents": 500,
+      "peakNotionalCents": 12500
+    }
+  ],
+  "datasets": {
+    "simulator": {
+      "id": "simulator/reference-v1",
+      "roundCount": 256,
+      "ticksPerFullRound": 721,
+      "tickMs": 125,
+      "initialIndex": 1000,
+      "tickVolatility": 0.0042,
+      "pathSelection": "uniform-by-declared-path"
+    },
+    "replay": {
+      "id": "replay/m1.6-fixtures",
+      "mapping": "fixture-start 125 ms grid; latest original row at-or-before; original timestamp/price; no interpolation or invented ticks",
+      "pathSelection": "uniform-by-declared-path",
+      "provenance": [
+        {
+          "id": "btcusdt-binance-2021-05-19-calm-100ms.csv",
+          "sha256": "59463c347c2a1d5532eb234475b5cd5125e7b51357b8669e67a030f6eae6aefb",
+          "rowCount": 245
+        },
+        {
+          "id": "btcusdt-binance-2021-05-19-flash-crash-100ms.csv",
+          "sha256": "1d9ea391c64557a7709af978a606b08f60c61be160dbbf8d891415f9858fd194",
+          "rowCount": 1000
+        }
+      ]
+    }
+  },
+  "methodology": "Theta minimizes absolute error from 96.5% for the equal-weight mean of four simulator behavior RTPs. Trials select uniformly among the declared paths in their source dataset. Candidates use common trial-addressed random streams; the final report uses a disjoint derived stream cohort. Replay cells are separate selected-regime stress evidence and are not pooled into theta selection. Cell and portfolio uncertainty are two-sided 99% Student-t intervals over 50 deterministic contiguous batches.",
+  "limitations": [
+    "Engineering-preliminary only: PL-6 still requires a release run of at least 10⁷ simulator positions.",
+    "The two committed M1.6 replay fixtures contain 130 seconds of selected calm/flash-crash BTC data, not the at least 90 days required by PL-6.",
+    "Reference behavior and equal mixture weights are declared assumptions, not observed production-player telemetry.",
+    "Confidence intervals quantify action/path sampling conditional on these datasets; they do not estimate unobserved BTC market regimes."
+  ]
+}

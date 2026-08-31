@@ -7,10 +7,10 @@ export const CFG = {
   ENTRY_CUTOFF_MS: 5000,  // no new positions in the last 5s (T−5s, EN-1)
   WAIT_MS: 8000,          // 8s intermission — parameter sheet §12, RL-2
   TICK_S: 0.125,          // seconds per authoritative tick; tau = ticks × this
-  THETA_PER_S: 0.0025,    // oxygen: 0.25%/s, the sole house edge (§5, PL-2).
+  THETA_PER_S: 0.0003,    // oxygen: M1.7 preliminary 0.03%/s (§5, PL-2/MC-8).
                           // The one business dial — everything else here is
-                          // audit-locked. M1.7 replaces it with a calibrated
-                          // value; Phase 2 serves it as remote config.
+                          // audit-locked. Phase 2 serves the calibrated value
+                          // as remote config and changes it only by version.
   LAUNCH_MS: 1400,
   ENDING_MS: 900,
   SETTLE_MS: 4200,
