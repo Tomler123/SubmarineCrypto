@@ -47,7 +47,13 @@ apps/client/src/
     round.js            round state machine
     bots.js             seeded fake actors; outcomes come from isolated @crush/engine states
   audio/audio.js        Au synth + pointerdown unlock listener
-  render/
+  render/               THE RENDERER SEAM (M1.8 — see below)
+    index.js            renderer selection + state -> SceneModel + renderFrame
+    boot.js             the one layout read; owns the resize listener
+    port.ts             RendererPort interface (init/resize/render/destroy)
+    scene-model.ts      pure state -> SceneModel projection + shared mappings
+    pixi-scene.ts       PixiJS v8 RendererPort
+    canvas-port.js      the retained Canvas 2D renderer as a RendererPort
     palette.js          depth-zone colour ramp, zone naming
     renderer.js         Canvas 2D renderer (canvas, view, FX, quality, draw, sprites)
   ui/
@@ -122,7 +128,8 @@ remains the normal client source and replay remains an explicit feed-seam opt-in
 
 ## Load-bearing boundaries for Phase 2
 
-These four seams are the reason the split exists. Treat them as contracts.
+These seams are the reason the split exists. Treat them as contracts. The
+first four came out of the Phase 1.5 split; the fifth was added by M1.8.
 
 ### 1. `feed/` — the price-feed boundary (most important)
 
@@ -225,6 +232,60 @@ rendering and DOM code so that migration is a move, not a rewrite.
 > and every trigger starts the ordinary 500 ms ascent. The client never evaluates
 > a trigger or cooldown and therefore cannot become stricter than the authority.
 
+### 5. `render/` — the renderer boundary (added at M1.8)
+
+Every renderer implements one `RendererPort` (`render/port.ts`): `init`,
+`resize`, `render`, `destroy`. **Nothing outside `render/` may know which
+implementation is running** — the same rule the feed seam has, enforced the same
+way, by a test that scans the client source tree
+(`apps/client/test/renderer-selection.test.js`).
+
+A renderer is a **sink**. `render(model): void` has no return channel, so there
+is no path by which a renderer could inform a gameplay decision; SC-3 is a
+property of the signature rather than a convention. What it receives is a
+`SceneModel`: a plain, serialisable snapshot projected by
+`render/scene-model.ts` from authoritative client state. A renderer reads that
+and nothing else — not `S`, not the engine, not `buffer`, not the DOM, not a
+clock.
+
+**The projection is pure**, and that purity is load-bearing rather than
+stylistic. `t` and `dt` are parameters because the caller owns the clock; there
+is no RNG. `apps/client/test/renderer-authority.test.js` runs the real
+`@crush/engine` over one tick series three times — zero frames per tick, one,
+and nine — projecting between authoritative ticks, and asserts byte-identical
+settlements and balances. That is SC-4: renderer timing cannot reach the money.
+
+**Authority facts pass through; they are never recomputed.** `crushIndex` and
+`livePnlCents` arrive from `Engine.liqIdx` and `Engine.pnl` and are copied
+through untouched. CR-6 gives the crush line exactly one implementation, and a
+second renderer must not become a second place it is derived. The geometry the
+projection *does* compute — depth-of-index, index-to-y, time-to-x, the sub
+anchor — lives in `scene-model.ts` so both renderers share one implementation
+(SC-7), pinned to the Canvas formulas by `renderer-parity.test.js`.
+
+**Layout is read once, by `render/boot.js`,** and handed down as data. Two
+renderers measuring independently would be two sources of truth for one number,
+and a renderer that reads the DOM cannot run headless in a test.
+
+**Canvas remains the default**; `?renderer=pixi` is the explicit opt-in, exactly
+as `?feed=replay` is for the feed. Retaining a renderer nobody runs is not a
+diffing baseline — keeping the one that ships means the port is compared against
+live behaviour.
+
+Two asymmetries are deliberate and temporary, and both end when Canvas is
+retired after visual-parity review:
+
+- `render/canvas-port.js` wraps `renderer.js` **unmodified**, so the Canvas
+  renderer still reads `S` / `Engine` / `buffer` directly and still owns its own
+  `window` resize listener. The two renderers are not yet symmetric in how they
+  *source* state.
+- `FX` and `trail` are still imported from `render/renderer.js` by
+  `core/engine.js` and `core/round.js`. They are Canvas-specific effect buffers;
+  decoupling them is a change to gameplay-adjacent modules that M1.8 does not
+  need. The documented import cycles are therefore unchanged in shape.
+
+See `docs/decisions/0009-renderer-port-and-scene-model.md`.
+
 ### `economy/` — intentionally absent
 
 There is no client `economy/` folder. Integer-minor-unit primitives live in
@@ -245,16 +306,17 @@ dependencies before dependents) plus the explicit import order in `main.js`.
 Actual evaluation order:
 
 ```
- 1. config/constants.js          11. render/palette.js       21. core/close-calls.ts
- 2. util/math.js                 12. render/renderer.js      22. core/engine.js
- 3. state/store.js               13. ui/dom-refs.js          23. core/bots.js
- 4. util/random.js               14. ui/feed.js              24. ui/history.js
- 5. feed/SimulatedIndexSource.js 15. ui/overlay.js           25. core/round.js
- 6. feed/InterpBuffer.js         16. core/entry-window.js    26. loop/frame.js
- 7. feed/index.js                17. core/gateway.js
- 8. util/format.js               18. ui/console.js
- 9. util/dom.js                  19. ui/sheets.js
-10. audio/audio.js               20. ui/responsible.js       27. main.js
+ 1. config/constants.js          12. render/renderer.js      23. core/bots.js
+ 2. util/math.js                 13. ui/dom-refs.js          24. ui/history.js
+ 3. state/store.js               14. ui/feed.js              25. core/round.js
+ 4. util/random.js               15. ui/overlay.js           26. render/scene-model.ts
+ 5. feed/SimulatedIndexSource.js 16. core/entry-window.js    27. render/port.ts
+ 6. feed/InterpBuffer.js         17. core/gateway.js         28. render/pixi-scene.ts
+ 7. feed/index.js                18. ui/console.js           29. render/canvas-port.js
+ 8. util/format.js               19. ui/sheets.js            30. render/index.js
+ 9. util/dom.js                  20. ui/responsible.js       31. render/boot.js
+10. audio/audio.js               21. core/close-calls.ts     32. loop/frame.js
+11. render/palette.js            22. core/engine.js          33. main.js
 ```
 
 > **M1.4 note.** `core/entry-window.js` was inserted at step 16, ahead of
@@ -270,6 +332,20 @@ Actual evaluation order:
 > its in-memory id set performs no external side effect, so it adds no row to
 > the table below; later evaluation steps shift by one.
 
+> **M1.8 note.** The renderer seam evaluates at steps 26–31, between
+> `core/round.js` and `loop/frame.js`. **Steps 1–25 are unchanged**, which is
+> the property that matters: the port was added after the game modules had
+> already evaluated, so nothing about feed, engine, round or UI initialisation
+> moved. `render/index.js` (step 30) constructs the selected port at module
+> scope — a new row in the table below — and `render/boot.js` (step 31)
+> registers the resize listener that replaces `main.js`'s direct `resize()`
+> call. `scene-model.ts`, `port.ts`, `pixi-scene.ts` and `canvas-port.js` carry
+> no module-level side effects.
+>
+> `render/renderer.js` still evaluates at step 12, ahead of all of these,
+> because `core/engine.js` and `core/round.js` import `FX` and `trail` from it.
+> That is the coupling M1.8 deliberately left alone; see boundary 5.
+
 The side effects that must fire in this relative order, and where they live:
 
 | # | Side effect | Module | Eval step |
@@ -277,12 +353,14 @@ The side effects that must fire in this relative order, and where they live:
 | 1 | `new SimulatedIndexSource()` starts the 125 ms feed timer | `feed/index.js` | 7 |
 | 2 | `document.addEventListener('pointerdown', …)` audio unlock | `audio/audio.js` | 10 |
 | 3 | `window.addEventListener('resize', resize)` | `render/renderer.js` | 12 |
+| 3b | `createRenderer()` builds the selected `RendererPort` | `render/index.js` | 30 |
+| 3c | `window.addEventListener('resize', …)` scene sizing | `render/boot.js` | 31 |
 | 4 | DOM node caching (`$('#…')` lookups) | `ui/dom-refs.js` | 13 |
 | 5 | Console listeners (stake, presets, leverage, dir, cash-out) | `ui/console.js` | 18 |
 | 6 | Sheet + scrim listeners | `ui/sheets.js` | 19 |
 | 7 | Limits / reality-check / sound listeners, 1 s session `setInterval` | `ui/responsible.js` | 20 |
-| 8 | `source.onTick(...)` tick wiring | `main.js` | 27 |
-| 9 | Boot: `resize()`, `setStake()`, `resetPhase('waiting')`, `rAF(frame)` | `main.js` | 27 |
+| 8 | `source.onTick(...)` tick wiring | `main.js` | 33 |
+| 9 | Boot: `bootScene()`, `setStake()`, `resetPhase('waiting')`, `rAF(frame)` | `main.js` | 33 |
 
 **Why the feed timer starting (step 7) before the tick subscription (step 27)
 is safe:** `SimulatedIndexSource`'s constructor sets `this.live = false`, and
@@ -330,10 +408,16 @@ Keeping the renderer whole means **zero identifiers changed inside the 300-line
 likely and hardest to detect. This trades the 200–400 line file guideline for a
 stronger behaviour-preservation guarantee.
 
-This is also the lowest-cost choice long-term: `render/` is slated for wholesale
-replacement by a PixiJS v8 scene (Phase 1.5 task 10), so internal seams there
-have the least durable value. The seams that matter for Phase 2 — `feed`,
-`engine`, `gateway`, `round` — are split and stay split.
+This was also the lowest-cost choice long-term, and M1.8 bore that out. Rather
+than splitting `renderer.js` internally, the PixiJS port went in **beside** it
+behind `RendererPort`, and `renderer.js` itself was not modified at all — it is
+wrapped by `render/canvas-port.js` and remains the verbatim visual reference the
+port is diffed against. Its internal seams never needed to exist; the seam that
+mattered was the one *around* it.
+
+It keeps its own `window` resize listener, its own quality tiers and its own
+direct reads of `S` / `Engine` / `buffer` for exactly that reason. Those go away
+when Canvas is retired after visual-parity review, not before.
 
 ---
 
@@ -351,5 +435,13 @@ mechanically during the split.
 M1.3 removed the arithmetic from that tangle but not the cycles themselves: the
 adapter in `core/engine.js` still imports the renderer, audio and UI in order to
 *render* engine events. The cycles are therefore unchanged in shape and remain
-safe for the same reason. They disappear when the client adopts a subscriber
-list instead of direct calls — natural to do alongside the M1.8 Pixi port.
+safe for the same reason.
+
+**M1.8 did not close them, deliberately.** The port went in beside the Canvas
+renderer rather than through it, so `core/engine.js` and `core/round.js` still
+import `FX` and `trail` from `render/renderer.js`. Those are Canvas-specific
+effect buffers; routing them through a subscriber list is a change to
+gameplay-adjacent modules that the scene port does not need in order to be
+correct, and bundling it in would have put renderer work inside the two files
+that hold the round machine and the engine adapter. It remains the natural next
+step when Canvas is retired.

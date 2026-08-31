@@ -13,6 +13,7 @@
     "@crush/engine": "*",
     "@crush/feed": "*",
     "@crush/gateway": "*",
-    "@crush/ledger": "*"
+    "@crush/ledger": "*",
+    "pixi.js": "^8.20.1"
   }
 }

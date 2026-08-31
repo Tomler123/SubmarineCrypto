@@ -7,11 +7,19 @@ import { overlayHTML } from '../ui/overlay.js';
 import { syncConsole } from '../ui/console.js';
 import { Engine } from '../core/engine.js';
 import { roundUpdate } from '../core/round.js';
-import { draw, getLastSubDepth, qualityCheck } from '../render/renderer.js';
+import { getLastSubDepth } from '../render/renderer.js';
+import { renderFrame } from '../render/index.js';
 import { zoneName } from '../render/palette.js';
 
 /* ================================================================
    MAIN LOOP
+
+   M1.8: the frame no longer calls a concrete renderer. It asks the render
+   seam to draw, and the seam decides which RendererPort is live (SC-1). The
+   HUD readout below still reads `getLastSubDepth()` from the Canvas renderer
+   because that renderer remains the default and owns the value; when Canvas
+   is retired after visual-parity review, the readout reads the projected
+   `SceneModel` instead and this import goes with it.
 ================================================================ */
 let lastT=now();
 export function frame(){
@@ -19,7 +27,7 @@ export function frame(){
   let dt=(t-lastT)/1000; lastT=t;
   dt=Math.min(dt,0.05);
   roundUpdate(t);
-  const out=draw(t,dt);
+  const out=renderFrame(t,dt);
   const v=out.v;
 
   el.idxVal.textContent=v.toFixed(1);
@@ -47,7 +55,9 @@ export function frame(){
     n.textContent=left.toFixed(1);
   }
   syncConsole(v);
-  qualityCheck(dt*1000);
+  // Quality-tier degradation moved into the renderer port at M1.8: it is a
+  // renderer-private concern, and a second caller here would double-count
+  // every frame time the Canvas tier logic averages.
   requestAnimationFrame(frame);
 }
 

@@ -1,6 +1,6 @@
 # Crush Depth — The Descent Plan
 
-**Rev. 7 · 2026-08-31 · Close Calls completion state**
+**Rev. 8 · 2026-08-31 · M1.8 renderer-port completion state**
 
 > This is the portable, plain-text mirror of the delivery-plan artifact. It is
 > the version to paste into any tool that cannot open a `claude.ai` link.
@@ -22,13 +22,35 @@ client code.
 | | |
 |---|---|
 | Phase complete | **1.0** — prototype, module split |
-| Phase in progress | **1.5** — 9 of 10 tasks done; Close Calls exit gate complete |
+| Phase in progress | **1.5** — 10 of 10 tasks done; M1.8 delivered in its approved scope |
 | Engine | Pure, immutable TypeScript; entry validation, auto-orders, caps and authoritative Close Call facts live |
-| Tests | **519 passed, 4 skipped** across 42 files; package coverage gates pass (Close Call module 100%; sim 96.04% lines, 84.55% branches, 100% functions) |
-| Spec documents | **2 of 2** — 105 acceptance ids across 18 categories |
-| Next planned work | M1.8 remains unstarted |
+| Tests | **583 passed, 4 skipped** across 48 files; package coverage gates pass (Close Call module 100%; sim 96.04% lines, 84.55% branches, 100% functions) |
+| Spec documents | **2 of 2** — 113 acceptance ids across 19 categories |
+| Next planned work | Phase 2 (M2.1 server-side feed); on-device PF-1 measurement before the Pixi default flips |
 
 ---
+
+## What changed in Rev. 8
+
+M1.8 adds ADR 0009 and SC-1…SC-8, written before implementation:
+
+- every renderer implements one `RendererPort`
+  (`init`/`resize`/`render`/`destroy`), and nothing outside `render/` knows
+  which one is live — the rule the feed seam already had, enforced the same way;
+- a renderer consumes a pure `SceneModel` projection and reads nothing else:
+  no `S`, no engine, no `buffer`, no DOM, no clock. `render(model): void` has no
+  return channel, so a scene cannot inform a gameplay decision by construction;
+- the crush line and live P&L pass through from `@crush/engine` untouched, and
+  the parity-critical geometry has one implementation both renderers share;
+- renderer frame rate cannot reach the money: the real engine settles
+  byte-identically at zero, one and nine projections per authoritative tick;
+- Canvas remains the default and is **unmodified**, retained as the visual
+  reference; `?renderer=pixi` is the explicit opt-in.
+
+Two things this milestone does **not** establish, stated plainly: PF-1's 60 fps
+on a mid-range phone is unmeasured (it needs a real device and a real WebGL
+context), and full visual parity is a human judgement that has not yet been
+made. Both gate flipping the default.
 
 ## What changed in Rev. 7
 
@@ -240,7 +262,7 @@ shipping legal later.
 | M1.6 | `ReplayIndexSource` + recorded BTC data | **Done** |
 | M1.7 | Monte-Carlo harness — calibrate θ | **Done** |
 | CC | Authoritative Close Calls in the fake social feed | **Done** |
-| M1.8 | PixiJS v8 scene port | Not started |
+| M1.8 | PixiJS v8 scene port | **Done** (approved scope) |
 
 **M1.5 — Risk caps and auto-orders** *(done)*
 
@@ -315,13 +337,39 @@ byte-identical across scheduler pacing; duplicate delivery renders once; Close
 Calls do not alter wallet, settlement, eligibility, round or source behavior;
 the full test, coverage, typecheck and build gates pass before completion.
 
-**M1.8 — PixiJS v8 scene port**
+**M1.8 — PixiJS v8 scene port** *(done, approved scope)*
 
 Deliberately last. The Canvas 2D renderer is the visual reference; port it only
 once the logic underneath has stopped moving.
 
 *Exit criteria:* renderer behind one interface. 60 fps on a mid-range phone in
 portrait. Canvas 2D version retained for visual diffing.
+
+The brief was three lines and the specifications named no renderer at all, so
+four questions were settled with the owner before implementation and recorded in
+ADR 0009: how much of the visual scene to reach, how the two renderers coexist,
+whether PixiJS becomes a dependency now, and where the code lives.
+
+*Delivered:* SC-1…SC-8; ADR 0009; `RendererPort` with an idempotent
+`init`/`destroy` pair that survives a destroy racing a pending init; a pure
+`SceneModel` projection; shared depth/position mappings pinned bit-for-bit to
+the Canvas formulas across four viewports; a frame-cadence determinism proof
+against the real engine; a source-tree scan proving no module outside `render/`
+names a renderer; and a contract test against the real PixiJS v8 API, since
+every other renderer test mocks it.
+
+Scope: the gameplay-critical layers — depth-lit water, the wake chart, sub, pod,
+and the UI-4 entry/crush lines. Creatures, god rays, marine snow, sonar, murk
+and debris are deferred; they carry no information a player acts on, and adding
+them touches `pixi-scene.ts` only.
+
+*Exit criteria status:* the renderer **is** behind one interface, and the
+Canvas version **is** retained for diffing — unmodified, and still the default,
+which is what makes it a live baseline rather than dead code. **The 60 fps
+criterion is not satisfied and is not claimed**: it needs a real device and a
+real WebGL context, and neither the jsdom suite nor this environment has one.
+Measure it on device, alongside a by-eye parity review, before the default
+flips to Pixi.
 
 ### Phase 2 — Server authority · 800 m · 6–10 weeks
 
@@ -397,12 +445,15 @@ milestone.
 
 ---
 
-## Next steps after Close Calls
+## Next steps after M1.8
 
-1. **Port the scene to PixiJS v8 (M1.8).** Keep it last so renderer work cannot
-   choose or conceal authority-side game rules.
+1. **Measure the Pixi scene on a real mid-range phone in portrait (PF-1),** and
+   review visual parity against the retained Canvas renderer by eye. Both gate
+   flipping the default away from Canvas; neither can be done in CI.
+2. **Begin Phase 2 with M2.1** — the real BTC feed with a published, auditable
+   index. Phase 1.5 is otherwise complete.
 
-Alongside that step, and not blocked by it: **open the licensing
+Alongside those, and not blocked by them: **open the licensing
 conversation** (M3.1). It is the longest lead time in the plan and the only item
 that can invalidate the design.
 
@@ -420,11 +471,12 @@ Ordered by how expensive they become if discovered late.
 | Declared-but-unenforced criteria | **Medium** | The known M1.5 gaps are closed. Preserve the tests-first rule and audit future tests for assertions that merely ratify current behavior. |
 | Simulator-shaped assumptions leaking into design | **Medium** | `SIM-ONLY` fencing is good discipline, but anti-run pressure and squalls make rounds dramatic in ways real BTC will not reliably reproduce. M1.6 now provides the replay comparison; keep it in the M1.7 calibration evidence. |
 | Responsible-play controls enforced client-side | **Medium** | Fine for a prototype, not compliant for real money. Budget the server-side move into Phase 2 rather than treating it as a Phase 3 surprise. |
-| `apps/client` is unchecked JavaScript | **Low** | Deliberate — M1.8 replaces `render/` wholesale, so typing it now is work thrown away. The risk is scope creep putting game logic in the adapter. Keep new logic in `packages/`. |
+| `apps/client` is unchecked JavaScript | **Low** | Narrowing rather than growing: M1.8's render seam is `.ts` and typechecked, as `core/close-calls.ts` already was, and client `.ts` is now covered by the coverage report. What remains unchecked is the retained Canvas renderer and the prototype UI. The risk is still scope creep putting game logic in the adapter — keep new logic in `packages/`. |
 | No trailing stop above 1× | **Low** | Intentional v1 scope: `AO-3` confines SL to (0,1). A profit-protecting trailing stop needs a separately specified order type rather than silently widening stop-loss semantics. |
-| PixiJS port attempted too early | **Low** | Already correctly sequenced last. Keep it there. |
+| Pixi default flipped before parity is proven | **Low** | M1.8 ships behind `?renderer=pixi` with Canvas as the default precisely so this cannot happen by accident. PF-1 on device and a by-eye parity review are the two gates; neither runs in CI, so both need scheduling rather than assuming. |
 
 ---
 
-*Crush Depth · delivery plan · Rev. 7 — M1.1 through M1.7 and Close Calls
-complete; M1.8 remains unstarted.*
+*Crush Depth · delivery plan · Rev. 8 — M1.1 through M1.8 and Close Calls
+complete; Phase 1.5 closes once PF-1 is measured on device and visual parity is
+reviewed.*

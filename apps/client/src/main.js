@@ -28,7 +28,7 @@ import { Engine } from './core/engine.js';
 import { botsTick } from './core/bots.js';
 import { resetPhase } from './core/round.js';
 import './audio/audio.js';                 // pointerdown unlock listener
-import { resize } from './render/renderer.js';   // resize listener
+import { bootScene } from './render/boot.js';    // renderer seam + resize listener
 import { setStake } from './ui/console.js';      // console listeners
 import './ui/sheets.js';                   // sheet + scrim listeners
 import './ui/responsible.js';              // limits, reality check, 1s session interval
@@ -44,7 +44,7 @@ source.onTick(tk=>{
   botsTick(tk);
 });
 
-resize();
+bootScene();
 setStake(S.stake);
 // RL-1: boot has no predecessor phase, so it seeds the machine explicitly
 // rather than going through the guarded `setPhase`. Every transition after

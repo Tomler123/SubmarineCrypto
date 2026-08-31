@@ -24,10 +24,43 @@ const IDS = [
   'setLimitBtn', 'lossLimitIn', 'limitNote', 'lsTime', 'lsWagered', 'lsNet',
   'rcContinue', 'rcLimits', 'rcModal', 'rcTime', 'rcWagered', 'rcNet',
   'limitsSheet',
+  // M1.8: the renderer seam pulls in the sheet and overlay modules through the
+  // Canvas renderer's existing import cycle, so their nodes must exist too.
+  'limitsBtn', 'mathBtn', 'toast',
 ];
 
 export function installDom(){
   document.body.innerHTML = IDS.map(id => `<div id="${id}"></div>`).join('')
     + '<input id="takeProfitIn" type="number">'
-    + '<input id="stopLossIn" type="number">';
+    + '<input id="stopLossIn" type="number">'
+    // M1.8: the renderer seam imports the Canvas renderer, which resolves
+    // #sceneWrap and #scene at module load exactly as the UI modules resolve
+    // theirs. Tests that import the seam need both to exist first.
+    + '<div id="sceneWrap"><canvas id="scene"></canvas></div>';
+
+  // jsdom defines `getContext` but throws "not implemented" on it, so the stub
+  // is assigned unconditionally rather than only when the method is absent.
+  // The Canvas renderer needs `getContext` to return *something* at module
+  // load; these tests assert on the seam, never on drawing commands, so a
+  // no-op is the honest fixture here — a test that wanted to check pixels
+  // would need a real canvas, not this.
+  const canvas = document.querySelector('#scene');
+  if (canvas) canvas.getContext = () => stubContext();
+}
+
+/** A 2D-context shape that records nothing and throws on nothing. */
+function stubContext(){
+  const noop = () => {};
+  return new Proxy({}, {
+    get(target, prop){
+      if (prop in target) return target[prop];
+      if (prop === 'canvas') return null;
+      // Gradient factories must return an object with addColorStop.
+      if (typeof prop === 'string' && prop.startsWith('create')){
+        return () => ({ addColorStop: noop });
+      }
+      return noop;
+    },
+    set(target, prop, value){ target[prop] = value; return true; },
+  });
 }

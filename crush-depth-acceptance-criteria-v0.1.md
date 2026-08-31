@@ -314,6 +314,51 @@ Conventions: "tick" = one 125 ms server sample. "MUST" = release blocker. All mo
   randomness, execution speed, wall-clock time and DOM state cannot affect the
   result for a fixed seed and authoritative tick/action script.
 
+## SC — Scene & Renderer Boundary (M1.8)
+
+- **SC-1** The client selects a renderer through one `RendererPort` interface
+  (`init`, `resize`, `render`, `destroy`). Every renderer implementation MUST
+  satisfy that interface, and nothing outside `render/` may know which
+  implementation is running — exactly what `FI` requires of `IndexSource`. The
+  Canvas 2D renderer remains a conforming implementation and stays the default
+  until visual parity has been reviewed; `?renderer=pixi` is the explicit
+  opt-in and is handled only inside the renderer seam.
+- **SC-2** A renderer consumes a `SceneModel` — a plain, serialisable snapshot
+  projected from authoritative client state — and MUST NOT read `S`, the
+  engine, the interpolation buffer, the DOM or a clock on its own. The
+  projection is a pure function `(input) => SceneModel` with no timers, no
+  RNG, no DOM and no clock reads; identical input produces a deeply equal
+  model on every call and in any execution order.
+- **SC-3** The scene MUST NOT make or influence a gameplay decision. No
+  renderer, projection or scene module may compute or alter a multiplier,
+  crush line, payout, P&L, settlement, eligibility, cooldown, wallet field,
+  round phase, feed selection or tick. The crush line and P&L that reach the
+  scene come from `@crush/engine` accessors (CR-6, UI-2); the scene MUST NOT
+  recompute either.
+- **SC-4** Renderer frame rate, frame timing, dropped frames, resize events,
+  device pixel ratio, quality tier and choice of implementation cannot change
+  any money or settlement fact. For an identical tick series and action
+  script, settlement output is byte-identical across differing frame cadences,
+  including no frames at all.
+- **SC-5** `init` is idempotent per port instance and acquires every resource
+  it needs; `destroy` releases them — canvas/WebGL context, display objects,
+  tickers and every listener the port registered — and leaves the port safe to
+  re-`init`. `render` after `destroy` is a no-op rather than a throw, so a
+  teardown race cannot crash the client.
+- **SC-6** `resize(width, height)` updates the projection viewport for the next
+  frame without reading layout inside the renderer, clamps device pixel ratio
+  to the quality tier in force, and MUST NOT alter game state. A zero or
+  negative dimension is ignored rather than propagated.
+- **SC-7** Parity-critical mappings are shared, not reimplemented per renderer:
+  depth-of-index, index-to-y, time-to-x, the depth colour ramp and the
+  entry/crush line positions come from one module that both implementations
+  consume. A parity test asserts both renderers place the sub, the entry line
+  and the crush line at the same coordinates for the same `SceneModel`.
+- **SC-8** UI-4 holds in every renderer implementation: whenever a position is
+  open, the projection emits the entry line, the creeping crush line and the
+  index/depth readout, and the model records them regardless of which renderer
+  draws it.
+
 ## PF — Performance
 
 - **PF-1** 60 fps median / ≥ 45 fps p5 on the reference mid-range device set during a volatile round with a position open; auto-degradation tiers engage below threshold without gameplay change.

@@ -7,10 +7,20 @@
     "types": ["vite/client"],
 
     /* The Phase 1 prototype is still JavaScript. `checkJs` stays off until the
-       client is converted; M1.8 replaces render/ wholesale, so converting it
-       before then would be work thrown away. New client code should be .ts. */
+       client is converted. M1.8 did not replace render/ wholesale as once
+       planned: the PixiJS port went in beside the Canvas renderer, which is
+       retained unmodified as the visual reference, so that prototype JavaScript
+       stays. New client code should be .ts. */
     "allowJs": true,
     "checkJs": false,
+
+    /* M1.8: client .ts modules import each other by their real '.ts' path,
+       which is what Vite resolves at dev/build time and what the existing
+       './close-calls.ts' imports already do from .js callers. Those were
+       invisible to tsc because checkJs is off; a .ts -> .ts import is checked,
+       so the flag has to be explicit. noEmit is already on, so this cannot
+       produce an unresolvable output path. */
+    "allowImportingTsExtensions": true,
     "noEmit": true,
     "composite": false,
     "declaration": false,

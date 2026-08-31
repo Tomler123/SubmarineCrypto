@@ -43,7 +43,17 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'lcov', 'html'],
       reportsDirectory: 'coverage',
-      include: ['packages/*/src/**/*.ts', 'apps/client/src/**/*.js'],
+      // M1.8: `apps/client/src/**/*.ts` was added because the client's
+      // TypeScript modules — `core/close-calls.ts` since Close Calls, and the
+      // M1.8 render seam — were invisible to the report, so the best-tested
+      // client code was the code nobody could see the coverage of. This only
+      // widens measurement: `apps/client` stays ungated (see the note below),
+      // so no threshold changes.
+      include: [
+        'packages/*/src/**/*.ts',
+        'apps/client/src/**/*.js',
+        'apps/client/src/**/*.ts',
+      ],
       // Placeholder barrels carrying only a package-name constant. Each is
       // removed from this list by the milestone that fills the package in:
       // engine M1.3 (done), feed M1.6 (done), gateway M2.2, sim M1.7 (done).

@@ -97,12 +97,37 @@ post-entry tick, including ascent and settlement, and emits one stable-id
 inclusive 50 bp threshold. The client formats and deduplicates that fact but
 owns no proximity rule. Fake social actors now run isolated real engine states;
 only their seeded names and action schedules remain synthetic. See CC-1…CC-8
-and ADR 0008. M1.8 remains unstarted.
+and ADR 0008.
 
-519 tests pass with 4 skipped across 42 files. Package coverage gates remain
+M1.8 is complete in its approved scope. The renderer now sits behind one
+`RendererPort` (`init`/`resize`/`render`/`destroy`), fed by a pure
+`SceneModel` projection. A renderer reads the model and nothing else — no `S`,
+no engine, no `buffer`, no DOM, no clock — and `render(model): void` has no
+return channel, so a scene cannot inform a gameplay decision by construction.
+`crushIndex` and `livePnlCents` pass through from `Engine.liqIdx` / `Engine.pnl`
+untouched (CR-6, UI-2); the shared geometry lives in `render/scene-model.ts` so
+both renderers place the sub and both lines identically.
+
+**Canvas remains the default**; `?renderer=pixi` is the explicit opt-in, exactly
+as `?feed=replay` is for the feed. The Canvas renderer is *unmodified* — wrapped
+by `render/canvas-port.js` — because it is the visual reference the port is
+diffed against, and a retained renderer nobody runs is not a baseline.
+
+The port covers the gameplay-critical layers (depth-lit water, the wake chart,
+sub, pod, entry/crush lines per UI-4). Creatures, god rays, marine snow, sonar,
+murk and debris are deliberately deferred; they carry no information a player
+acts on, and adding them later touches `pixi-scene.ts` only. **PF-1's 60 fps on
+a mid-range phone is not demonstrated** — it needs a real device and a real
+WebGL context, so that exit criterion stands open. See SC-1…SC-8 and ADR 0009.
+
+583 tests pass with 4 skipped across 48 files. Package coverage gates remain
 green; the Close Call engine module is at 100 % lines/statements, branches and
 functions, while `@crush/sim` remains at 96.04 % lines/statements, 84.55 %
-branches and 100 % functions without excluding its populated barrel.
+branches and 100 % functions without excluding its populated barrel. Client
+`.ts` modules are now measured too — a reporting gap that had hidden
+`core/close-calls.ts` since Close Calls — putting `scene-model.ts` at 100 %
+lines and `pixi-scene.ts` at 83.22 % lines / 100 % functions. `apps/client`
+remains ungated.
 
 ### Where things live
 
@@ -120,7 +145,9 @@ apps/client/src/
   feed/                 SimulatedIndexSource, InterpBuffer, and the source/buffer singletons
   core/                 engine adapter, Close Call projector, gateway, entry-window, round, engine-backed bots
   audio/audio.js        Au synth + pointerdown unlock
-  render/               palette (depth colour ramp), renderer (Canvas 2D — one file, see ARCHITECTURE.md)
+  render/               the renderer seam: port.ts, scene-model.ts (pure projection),
+                        pixi-scene.ts, canvas-port.js, index.js (selection), boot.js,
+                        palette, renderer.js (Canvas 2D reference — unmodified)
   ui/                   dom-refs, feed, history, overlay, console, sheets, responsible
   loop/frame.js         60 fps main loop
 ```
@@ -131,6 +158,22 @@ Run it with `npm install` then `npm run dev` (Vite, http://localhost:5173). ES m
 
 - **Nothing outside `src/feed/` may know which `IndexSource` is running.** Import the `source` singleton from `feed/index.js`, never `SimulatedIndexSource` directly.
 - **`InterpBuffer` stays out of `render/`.** Ticks are authoritative; the interpolated value is presentation. Keeping them in separate modules makes invariant 3 structurally visible.
+- **A renderer reads the `SceneModel` and nothing else.** No `S`, no engine, no
+  `buffer`, no DOM, no clock inside a renderer — the projection in
+  `render/scene-model.ts` is the only place client state is read, and
+  `render(model): void` has no return channel, so a scene cannot feed a
+  gameplay decision. Authority facts (`crushIndex`, `livePnlCents`) pass through
+  from `@crush/engine`; never recompute either in `render/`.
+- **Renderer selection lives only in `render/index.js`.** Nothing outside
+  `render/` may name a concrete implementation or import `pixi.js`, exactly as
+  nothing outside `feed/` may name a concrete source. Canvas stays the default
+  until visual parity is reviewed; `?renderer=pixi` is the opt-in.
+- **`render/renderer.js` is the visual reference — do not edit it.** It is
+  wrapped by `canvas-port.js`. Changing it changes the baseline the Pixi port
+  is being diffed against.
+- **Layout is read once, in `render/boot.js`,** and handed to a port as data. A
+  renderer that measures the DOM cannot run headless in a test, and two
+  renderers measuring independently is two sources of truth for one number.
 - **New module with side effects?** Add its import to `main.js` at the position matching the documented order, and update the side-effect table in `ARCHITECTURE.md`.
 - **`engine.js` is a client adapter now, not the engine.** The math lives in `@crush/engine`; `apps/client/src/core/engine.js` holds the engine state, mirrors it into `S`, turns `EngineEvent`s into `FX`/`Au`/`feedMsg`/`toast`/`checkLossLimit` calls, and owns the 900 ms delay before a settled position clears. Keep new game logic in the package, not the adapter.
 - **τ never comes from a clock, and θ never from a literal.** Oxygen is
@@ -194,8 +237,10 @@ Close Call at minimum surviving d·(I_t−I_crush)/I_crush ≤ 0.5 %, inclusive
 
 > **Current vs. target.** The npm-workspaces monorepo and TypeScript build are
 > live. `@crush/ledger` and the pure `@crush/engine` are populated through the
-> authoritative Close Call event seam; the remaining
-> client is still ES modules under `apps/client` until M1.8. `packages/gateway`
+> authoritative Close Call event seam. The client is still ES modules under
+> `apps/client`: M1.8 put the PixiJS scene behind a `RendererPort` there rather
+> than moving it to a package, because the target structure puts the renderer in
+> `apps/client`. React/Zustand adoption remains future work. `packages/gateway`
 > remains a milestone-shaped placeholder; `packages/feed` is populated through
 > M1.6 and `packages/sim` through M1.7.
 
@@ -215,7 +260,7 @@ Close Call at minimum surviving d·(I_t−I_crush)/I_crush ≤ 0.5 %, inclusive
 
 ## Phase 1.5 task list (current)
 
-1. ~~Repo scaffold~~ — **done**. The ES-module split (see "Where things live") plus M1.2: npm workspaces, Vite, TypeScript strict, Vitest with an 80% coverage gate over `packages/*`, and CI on push. `apps/client` is still JavaScript (`allowJs`, `checkJs` off) because M1.8 replaces `render/` wholesale; **new code should be `.ts`.**
+1. ~~Repo scaffold~~ — **done**. The ES-module split (see "Where things live") plus M1.2: npm workspaces, Vite, TypeScript strict, Vitest with an 80% coverage gate over `packages/*`, and CI on push. `apps/client` is still JavaScript (`allowJs`, `checkJs` off); **new code should be `.ts`.** M1.8 added the render seam as `.ts` beside the untouched Canvas renderer rather than replacing `render/` wholesale, so the prototype JavaScript there is retained deliberately as the visual reference.
 2. ~~Port engine math into `/packages/engine` with unit tests against the acceptance criteria~~ — **done (M1.3)**. Tests are named by AC id; `packages/engine/test/purity.test.ts` is the durable guard on the no-DOM/no-timer/no-clock/no-RNG rule.
 3. ~~Add oxygen: `−θτ` in the multiplier, O₂ bar draining on the cash-out button, crush line creeping in the scene.~~ — **done (M1.4)**.
 4. ~~Round 90 s, entry cutoff T−5 s, intermission 8 s.~~ — **done (M1.4)**.
@@ -226,7 +271,12 @@ Close Call at minimum surviving d·(I_t−I_crush)/I_crush ≤ 0.5 %, inclusive
    primary-source fixtures, provenance, and engine settlement evidence.
 8. ~~Monte-Carlo harness in `/packages/sim`: calibrate θ to RTP 96.5 % across behavior models; output a report artifact.~~ **done (M1.7)** — seeded trial-addressed streams, simulator selection, separately reported replay stress evidence, 99 % intervals, and canonical JSON/Markdown artifacts; θ is 0.03 %/s pending PL-6.
 9. ~~Close Calls events in the (still fake) social feed.~~ **done** — CC-1…CC-8, ADR 0008; inclusive 50 bp minimum authoritative headroom, full ascent exposure, stable-id duplicate suppression, and engine-backed fake actors.
-10. PixiJS scene port of the Canvas 2D renderer — last, after logic is tested.
+10. ~~PixiJS scene port of the Canvas 2D renderer — last, after logic is
+    tested.~~ **done (M1.8)** — SC-1…SC-8, ADR 0009. One `RendererPort`, a pure
+    `SceneModel` projection, shared parity-critical mappings, and a
+    `?renderer=pixi` opt-in with Canvas retained unmodified as the default and
+    the visual reference. Gameplay-critical layers only; PF-1's on-device
+    60 fps measurement remains open.
 
 ## Working conventions
 
