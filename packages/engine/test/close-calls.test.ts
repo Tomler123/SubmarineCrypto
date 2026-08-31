@@ -101,7 +101,7 @@ describe('CC-1/CC-4 — eligibility and full-exposure closest approach', () => {
     state = onTick(state, tick(125, ENTRY), CONFIG).state;
     state = requestAscent(state, 125, CONFIG).state;
 
-    const near = nextAfter(boundaryValue(1), true);
+    const near = nextAfter(boundaryValue(1), false);
     state = onTick(state, tick(250, near), CONFIG).state;
     state = onTick(state, tick(500, ENTRY), CONFIG).state;
     const result = onTick(state, tick(625, ENTRY), CONFIG);

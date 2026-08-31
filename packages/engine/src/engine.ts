@@ -21,6 +21,7 @@
 
 import { type Cents, ZERO, addCents, cents, isCents, subCents } from '@crush/ledger';
 import { ascentDue, isCrushed, payoutFor, pnlFor, positionMultiplier, tauOf } from './position.js';
+import { closeCallForSettlement, observeCloseCallApproach } from './close-call.js';
 import type {
   AscentCause,
   EngineConfig,
@@ -233,6 +234,7 @@ export function open(
     ...(req.stopLoss === undefined ? {} : { stopLoss: req.stopLoss }),
     lastMultiplier: 1,
     ascentCause: null,
+    closestApproach: null,
     resolveT: 0,
   };
 
@@ -334,11 +336,13 @@ function settle(
     net: addCents(state.wallet.net, pnl),
   };
   const position: Position = { ...p, state: 'done', result: settlement };
+  const closeCall = closeCallForSettlement(p, settlement);
 
   return {
     state: { ...state, wallet, position, lastResult: settlement },
     events: [
       { kind: 'settled', settlement },
+      ...(closeCall === null ? [] : [{ kind: 'close-call' as const, closeCall }]),
       // Replaces the prototype's direct `checkLossLimit()` call. The engine
       // reports the numbers; the responsible-play policy lives in the client
       // (Phase 1.5) and moves server-side at M3.3.
@@ -378,13 +382,19 @@ export function onTick(
   // is replayed), so the first tick a position sees is tick 1 — tau = 0.125 s.
   const tauAdvanced: Position = { ...prior, ticksElapsed: prior.ticksElapsed + 1 };
   const multiplierAtTick = positionMultiplier(tauAdvanced, tick.v, config.tickSeconds);
-  const p: Position = { ...tauAdvanced, lastMultiplier: multiplierAtTick };
-  const advanced: EngineState = { ...state, position: p };
+  const evaluated: Position = { ...tauAdvanced, lastMultiplier: multiplierAtTick };
+  const advancedBeforeProximity: EngineState = { ...state, position: evaluated };
 
   // 1. Crush check (CR-1, CR-4).
-  if (isCrushed(p, tick.v, config.tickSeconds)) {
-    return settle(advanced, p, tick, 'crush', config);
+  if (isCrushed(evaluated, tick.v, config.tickSeconds)) {
+    return settle(advancedBeforeProximity, evaluated, tick, 'crush', config);
   }
+
+  // CC-2/CC-4: only surviving authoritative ticks are observations. This runs
+  // after CR-1 and before either a trigger or due settlement, so open and every
+  // ascent tick (including the settlement tick) share the same complete window.
+  const p = observeCloseCallApproach(evaluated, tick, config.tickSeconds);
+  const advanced: EngineState = { ...state, position: p };
 
   // 2. Auto-order triggers (AO-1…AO-5). TP/SL use consecutive authoritative
   // multipliers. Their position between crush and settlement is fixed by CR-1
@@ -436,7 +446,10 @@ export function settleAtRoundEnd(
   // which counted it; counting it again would charge one extra tick of oxygen
   // for the privilege of the round ending. RL-4 settles "at the final tick at
   // its current multiplier" — the multiplier the player was already shown.
-  return settle(state, p, tick, 'round-end', config);
+  const observed = isCrushed(p, tick.v, config.tickSeconds)
+    ? p
+    : observeCloseCallApproach(p, tick, config.tickSeconds);
+  return settle({ ...state, position: observed }, observed, tick, 'round-end', config);
 }
 
 /**

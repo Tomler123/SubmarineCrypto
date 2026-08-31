@@ -44,6 +44,19 @@ export type SettlementReason =
   | 'round-end';
 
 /**
+ * The closest surviving authoritative tick observed for Close Calls (CC-2/CC-4).
+ * `headroomBps` is signed into a common positive survival scale for both
+ * directions. `withinThreshold` records the authority's unrounded boundary
+ * decision; the client never reclassifies the formatted percentage.
+ */
+export interface CloseCallApproach {
+  readonly tick: Tick;
+  readonly crushIndex: number;
+  readonly headroomBps: number;
+  readonly withinThreshold: boolean;
+}
+
+/**
  * An open or settled position. Immutable: every transition returns a new
  * object (coding-style rule), so a caller holding a pre-tick position still
  * sees pre-tick values.
@@ -86,6 +99,8 @@ export interface Position {
   readonly lastMultiplier: number;
   /** Null until the position starts its single irrevocable ascent. */
   readonly ascentCause: AscentCause | null;
+  /** Minimum post-entry authoritative safety headroom; null before the first tick. */
+  readonly closestApproach: CloseCallApproach | null;
   /**
    * Earliest settlement time for an ascent: `t_r + ASCENT_MS` (CO-1).
    * Zero while the position is `open`.
@@ -130,6 +145,22 @@ export interface Settlement {
   readonly payout: Cents;
   /** `payout − stake`. Never worse than `−stake` (PL-5). */
   readonly pnl: Cents;
+}
+
+/** Self-contained authoritative Close Call fact emitted after settlement. */
+export interface CloseCall {
+  readonly id: string;
+  readonly positionId: string;
+  readonly dir: Direction;
+  readonly thresholdBps: number;
+  readonly closest: CloseCallApproach;
+  readonly settlement: Settlement;
+}
+
+/** Dedicated event shape exported for deterministic social-feed projection. */
+export interface CloseCallEvent {
+  readonly kind: 'close-call';
+  readonly closeCall: CloseCall;
 }
 
 /** Immutable wallet slice the engine reads and returns. All integer cents. */
@@ -288,6 +319,7 @@ export type EngineEvent =
   | { readonly kind: 'open-rejected'; readonly code: RejectCode }
   | { readonly kind: 'ascent-started'; readonly position: Position }
   | { readonly kind: 'settled'; readonly settlement: Settlement }
+  | CloseCallEvent
   /**
    * Emitted after every settlement so the client can run its loss-limit check.
    * Replaces the direct `checkLossLimit()` call; the engine does not own the

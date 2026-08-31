@@ -6,6 +6,7 @@ import { Au } from '../audio/audio.js';
 import { feedMsg } from '../ui/feed.js';
 import { toast } from '../ui/overlay.js';
 import { checkLossLimit } from '../ui/responsible.js';
+import { closeCallFeed } from './close-calls.ts';
 import { CFG } from '../config/constants.js';
 import {
   clearSettled,
@@ -116,6 +117,9 @@ function applyEvent(ev){
       clearTimer = setTimeout(()=>{ apply(clearSettled(state)); }, 900);
       break;
     }
+    case 'close-call':
+      closeCallFeed.publish(ev, 'YOU', true);
+      break;
     case 'wallet-changed':
       // Replaces the direct checkLossLimit() call inside settle(). The engine
       // reports the numbers; the responsible-play policy stays in the client.

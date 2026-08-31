@@ -36,6 +36,9 @@ export const ENGINE_PACKAGE = '@crush/engine';
 
 export type {
   AscentCause,
+  CloseCall,
+  CloseCallApproach,
+  CloseCallEvent,
   Direction,
   EngineConfig,
   EngineEvent,
@@ -51,6 +54,12 @@ export type {
   Tick,
   Wallet,
 } from './types.js';
+
+export {
+  CLOSE_CALL_THRESHOLD_BPS,
+  closeCallForSettlement,
+  observeCloseCallApproach,
+} from './close-call.js';
 
 export {
   DEFAULT_CONFIG,

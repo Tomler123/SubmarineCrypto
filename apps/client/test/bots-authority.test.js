@@ -45,7 +45,7 @@ describe('CC-8 — fake actors consume real engine events', () => {
 
   it('publishes engine-emitted Close Calls after ascent exposure', () => {
     botsTick({ t: 0, v: 1_000 });
-    botsTick({ t: 125, v: 904.6 });
+    botsTick({ t: 125, v: 904.5 });
     botsTick({ t: 2_500, v: 1_000 });
     botsTick({ t: 3_000, v: 1_000 });
 
