@@ -268,7 +268,7 @@ Position it as "the first market-driven crash game," not "the first crypto price
 
 ## 11. Retention & attraction ideas (all RNG-free, ranked)
 
-1. **Close Calls ticker** — "K4raken escaped 0.4% from crush" broadcast to the room. The near-death of others is the cheapest drama in the game; the engine already knows it.
+1. **Close Calls ticker** — "K4raken escaped 0.4% from crush" broadcast to the room. The near-death of others is the cheapest drama in the game. A Close Call is an informational fact emitted only for a successful ascent or round-end settlement with positive payout. The authority retains the minimum surviving post-entry index headroom from the live creeping crush line over the full exposure, including every ascent and settlement tick: `d·(I_t − I_crush(τ))/I_crush(τ)`. At or below **0.5% (50 bp), inclusive**, it emits one stable-id event after `settled` and before `wallet-changed`; exact ties retain the earliest tick. Crushes never qualify. Fake social actors use isolated real engine states, while their seeded names/actions remain presentation-only. See CC-1…CC-8 and ADR 0008.
 2. **Auto cash-out + stop-loss** (§6) — expected by every crash player; enables one-thumb sessions.
 3. **Depth records** — daily/weekly boards: highest multiplier surfaced, deepest survived, longest hold at 25×. Pure telemetry, strong bragging.
 4. **Escape replays** — 10-second shareable clip of your pod's ascent with the payout counter. The Blow is the signature moment; let people post it.
@@ -298,6 +298,7 @@ Position it as "the first market-driven crash game," not "the first crypto price
 | Ascent | 500 ms | locked (fairness) |
 | Max win | 50× and $10k/position | bankroll-derived |
 | Stakes | $0.50 min, $5 default | tunable |
+| Close Call | minimum surviving headroom ≤ 0.5% from live crush line | versioned audit assumption |
 
 "Audit-locked" = changing it invalidates the published verifiability story; version any change publicly.
 
@@ -309,5 +310,5 @@ Position it as "the first market-driven crash game," not "the first crypto price
 2. ~~Round length 90 s, entry cutoff T−5 s, intermission 8 s.~~ **Done (M1.4).**
 3. ~~Auto cash-out / stop-loss inputs (collapsed row under leverage), runtime
    validation, cooldown and max-win auto-surface.~~ **Done (M1.5).**
-4. Close Calls in the fake feed.
+4. ~~Close Calls in the fake feed.~~ **Done** — authoritative minimum-headroom facts, inclusive 50 bp threshold, ascent exposure, stable-id duplicate suppression, and engine-backed fake actors (CC-1…CC-8, ADR 0008).
 5. **Done in M1.6:** the feed seam gains a deterministic replay mode fed by documented recorded real BTC 100 ms data (best possible pre-phase-2 test harness).

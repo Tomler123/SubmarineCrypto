@@ -9,6 +9,7 @@ import {
   settleAtRoundEnd,
   type EngineEvent,
   type EngineState,
+  type CloseCallEvent,
 } from '@crush/engine';
 import { cents } from '@crush/ledger';
 import { describe, expect, it } from 'vitest';
@@ -87,6 +88,47 @@ function runFlashCrash(boundaryBatches: readonly number[]): ReplayArtifact {
   return { ticks, events, state };
 }
 
+/** A non-empty CC-7 replay artifact whose closest tick is recorded BTC data. */
+function runRecordedCloseCall(boundaryBatches: readonly number[]): readonly CloseCallEvent[] {
+  const fixture = parseReplayCsv(readFileSync(FLASH_FIXTURE, 'utf8'));
+  const scheduler = new ManualScheduler();
+  const source = new ReplayIndexSource(fixture, { scheduler });
+  const events: EngineEvent[] = [];
+  let tickIndex = 0;
+  let state = initialState(cents(100_000));
+
+  source.onTick((tick) => {
+    if (tickIndex === 0) {
+      const opened = open(state, {
+        id: 'recorded-close-call',
+        dir: 1,
+        lev: 25,
+        stake: cents(5_000),
+      }, tick, DEFAULT_CONFIG);
+      state = opened.state;
+      events.push(...opened.events);
+    } else if (state.position?.state !== 'done') {
+      const advanced = onTick(state, tick, DEFAULT_CONFIG);
+      state = advanced.state;
+      events.push(...advanced.events);
+
+      // The published transform's tick 298 is about 0.303% above the live Surface
+      // crush line after oxygen: inside CC-3's 0.5%-of-line band, but surviving.
+      if (tickIndex === 298 && state.position?.state !== 'done') {
+        const settled = settleAtRoundEnd(state, tick, DEFAULT_CONFIG);
+        state = settled.state;
+        events.push(...settled.events);
+      }
+    }
+    tickIndex += 1;
+  });
+
+  source.resetRound();
+  for (const count of boundaryBatches) scheduler.advance(count);
+  source.halt();
+  return events.filter((event): event is CloseCallEvent => event.kind === 'close-call');
+}
+
 describe('FI-15 — deterministic settlement on recorded real BTC', () => {
   it('produces byte-identical ticks, events and settlement across fresh runs', () => {
     const first = JSON.stringify(runFlashCrash([2_000]));
@@ -118,6 +160,19 @@ describe('FI-15 — deterministic settlement on recorded real BTC', () => {
       crushed: false,
       payout: 2_746,
       pnl: -2_254,
+    });
+  });
+
+  it('CC-7: recorded Close Call output is non-empty and byte-identical across playback pacing', () => {
+    const fast = runRecordedCloseCall([2_000]);
+    const chunked = runRecordedCloseCall(Array.from({ length: 200 }, () => 10));
+
+    expect(fast).toHaveLength(1);
+    expect(JSON.stringify(fast)).toBe(JSON.stringify(chunked));
+    expect(fast[0]?.closeCall).toMatchObject({
+      id: 'close-call:recorded-close-call:1621430457200:round-end',
+      closest: { tick: { t: 1621430457200, v: 963.3592444323681 } },
+      settlement: { reason: 'round-end', crushed: false },
     });
   });
 });

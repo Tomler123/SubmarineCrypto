@@ -46,6 +46,7 @@ function positionAt(
     resolveT: 0,
     lastMultiplier: 1,
     ascentCause: null,
+    closestApproach: null,
   };
 }
 

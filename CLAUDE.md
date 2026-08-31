@@ -88,11 +88,21 @@ portfolio estimates 96.5437 % RTP, while a disjoint 20,000-position simulator
 cohort estimates 96.9492 % with a 99 % interval containing the 96.5 % target.
 The report is deliberately `engineering-preliminary`; PL-6 still requires at
 least 10⁷ positions and 90 days of representative BTC before launch. See ADR
-0007. M1.8 remains unstarted.
+0007.
 
-495 tests pass with 4 skipped across 39 files. Package coverage gates remain
-green; `@crush/sim` is at 96.04 % lines/statements, 84.55 % branches and 100 %
-functions without excluding its populated barrel.
+The Phase 1.5 Close Calls task is complete. `@crush/engine` retains the minimum
+surviving authoritative index headroom from the live crush line over every
+post-entry tick, including ascent and settlement, and emits one stable-id
+`close-call` event for eligible successful settlements at or inside the
+inclusive 50 bp threshold. The client formats and deduplicates that fact but
+owns no proximity rule. Fake social actors now run isolated real engine states;
+only their seeded names and action schedules remain synthetic. See CC-1…CC-8
+and ADR 0008. M1.8 remains unstarted.
+
+519 tests pass with 4 skipped across 42 files. Package coverage gates remain
+green; the Close Call engine module is at 100 % lines/statements, branches and
+functions, while `@crush/sim` remains at 96.04 % lines/statements, 84.55 %
+branches and 100 % functions without excluding its populated barrel.
 
 ### Where things live
 
@@ -108,7 +118,7 @@ apps/client/src/
   util/                 dom ($), math (clamp/lerp/now/wait), random (LCG/gauss/noise/RSEED), format (fmt$/fmtClock)
   state/store.js        S — mutable game state singleton
   feed/                 SimulatedIndexSource, InterpBuffer, and the source/buffer singletons
-  core/                 engine (adapter), gateway, entry-window (EN-1 cutoff), round (state machine), bots
+  core/                 engine adapter, Close Call projector, gateway, entry-window, round, engine-backed bots
   audio/audio.js        Au synth + pointerdown unlock
   render/               palette (depth colour ramp), renderer (Canvas 2D — one file, see ARCHITECTURE.md)
   ui/                   dom-refs, feed, history, overlay, console, sheets, responsible
@@ -131,6 +141,12 @@ Run it with `npm install` then `npm run dev` (Vite, http://localhost:5173). ES m
 - **The crush line has exactly one implementation.** `positionCrushIndex` is what
   the engine tests against *and* what the renderer draws; never recompute it
   client-side. `CR-6` makes a one-tick drift between the two a release blocker.
+- **Close Calls are authority facts, not client classifications.** The engine
+  observes signed headroom from its own `positionCrushIndex` on surviving ticks,
+  including the full ascent, and emits the stable-id event after settlement.
+  `core/close-calls.ts` may format and suppress duplicate ids only. Fake actors
+  must consume isolated `@crush/engine` events; never restore their former local
+  multiplier, crush, payout or P&L formulas.
 - **`setPhase` enforces RL-1; `resetPhase` is the only bypass.** Phase entry runs
   side effects that are not idempotent (entering `settling` settles every open
   position), so a new phase-entry effect goes inside `enterPhase` and a new caller
@@ -171,12 +187,14 @@ LEVERAGE {2, 5, 10, 25} · stake×lev ≤ $2,000 · max win 50× and $10k
 M_t = 1 + L·d·(I_t/I_e − 1) − θ·τ ;  τ = ticks-since-entry × 0.125 (entry = tick 0)
 crush at the first tick the index reaches the line I_e·(1 − d·(1 − θτ)/L)
   — the LINE is authoritative where floats separate it from M_t ≤ 0
+Close Call at minimum surviving d·(I_t−I_crush)/I_crush ≤ 0.5 %, inclusive
 ```
 
 ## Target repo structure (migrate toward this; don't half-migrate)
 
 > **Current vs. target.** The npm-workspaces monorepo and TypeScript build are
-> live. `@crush/ledger` and the pure `@crush/engine` are populated; the remaining
+> live. `@crush/ledger` and the pure `@crush/engine` are populated through the
+> authoritative Close Call event seam; the remaining
 > client is still ES modules under `apps/client` until M1.8. `packages/gateway`
 > remains a milestone-shaped placeholder; `packages/feed` is populated through
 > M1.6 and `packages/sim` through M1.7.
@@ -184,7 +202,7 @@ crush at the first tick the index reaches the line I_e·(1 − d·(1 − θτ)/L
 ```
 /apps/client          React + PixiJS v8 + Zustand + Framer Motion (mobile-first, portrait)
 /packages/feed        IndexSource contract, SimulatedIndexSource, ReplayIndexSource, InterpBuffer
-/packages/engine      round state machine, position math, oxygen, crush, settlement (pure, no I/O)
+/packages/engine      round state, position math, oxygen, crush, settlement, Close Call facts (pure, no I/O)
 /packages/gateway     request/ack seam, optimistic mirror
 /packages/ledger      integer-cent wallet types + double-entry helpers (client mock in Phase 1.5)
 /packages/sim         Monte-Carlo RTP calibration harness + behavior models
@@ -207,7 +225,7 @@ crush at the first tick the index reaches the line I_e·(1 − d·(1 − θτ)/L
    **done (M1.6)** — deterministic 125 ms-grid selection, published transform,
    primary-source fixtures, provenance, and engine settlement evidence.
 8. ~~Monte-Carlo harness in `/packages/sim`: calibrate θ to RTP 96.5 % across behavior models; output a report artifact.~~ **done (M1.7)** — seeded trial-addressed streams, simulator selection, separately reported replay stress evidence, 99 % intervals, and canonical JSON/Markdown artifacts; θ is 0.03 %/s pending PL-6.
-9. Close Calls events in the (still fake) social feed.
+9. ~~Close Calls events in the (still fake) social feed.~~ **done** — CC-1…CC-8, ADR 0008; inclusive 50 bp minimum authoritative headroom, full ascent exposure, stable-id duplicate suppression, and engine-backed fake actors.
 10. PixiJS scene port of the Canvas 2D renderer — last, after logic is tested.
 
 ## Working conventions

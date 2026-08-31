@@ -392,7 +392,7 @@ export function onTick(
 
   // CC-2/CC-4: only surviving authoritative ticks are observations. This runs
   // after CR-1 and before either a trigger or due settlement, so open and every
-  // ascent tick (including the settlement tick) share the same complete window.
+  // ascent tick (including the settlement tick) share the same exposure interval.
   const p = observeCloseCallApproach(evaluated, tick, config.tickSeconds);
   const advanced: EngineState = { ...state, position: p };
 

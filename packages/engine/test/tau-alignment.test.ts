@@ -658,6 +658,7 @@ describe('CR-6 — the probe measures the engine itself', () => {
             theta: CONFIG.thetaPerSecond,
             lastMultiplier: 1,
             ascentCause: null,
+            closestApproach: null,
             resolveT: 0,
           };
           const probed = probeEngineLine(p, CONFIG.tickSeconds);

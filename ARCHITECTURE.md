@@ -41,10 +41,11 @@ apps/client/src/
     index.js            the `source` and `buffer` singletons
   core/                 pure-ish game logic
     engine.js           adapter over @crush/engine: state mirror + event → effect
+    close-calls.ts      deterministic event formatting + stable-id feed suppression
     gateway.js          request/ack seam for player actions
     entry-window.js     EN-1 T−5s cutoff predicate (pure read of S + CFG)
     round.js            round state machine
-    bots.js             fake social layer
+    bots.js             seeded fake actors; outcomes come from isolated @crush/engine states
   audio/audio.js        Au synth + pointerdown unlock listener
   render/
     palette.js          depth-zone colour ramp, zone naming
@@ -62,7 +63,7 @@ apps/client/src/
 
 ---
 
-## Target packages (created at M1.2, filled through M1.7)
+## Target packages (created at M1.2, filled through Close Calls)
 
 The workspaces exist with manifests, tsconfigs and project references so that
 each milestone fills a package rather than inventing one. Placeholder barrels
@@ -72,7 +73,7 @@ them.
 | Package | Populated by | Holds |
 |---|---|---|
 | `@crush/ledger` | **live now** | branded `Cents`, round-half-away-from-zero, arithmetic guards |
-| `@crush/engine` | **live through M1.5** | pure position lifecycle, oxygen, crush, settlement, entry validation/cooldown, TP/SL/max-win triggers and payout caps |
+| `@crush/engine` | **live through Close Calls** | pure position lifecycle, oxygen, crush, settlement, entry validation/cooldown, TP/SL/max-win triggers, payout caps and authoritative Close Call facts |
 | `@crush/feed` | **live through M1.6** | TypeScript `IndexSource` contract/base gate, published transform, simulated and replay sources, `InterpBuffer`, fixture parser |
 | `@crush/gateway` | M2.2 | request/ack seam, optimistic mirror |
 | `@crush/sim` | **live through M1.7** | deterministic Monte-Carlo RTP harness, behavior models, source datasets, statistics and canonical report data |
@@ -85,6 +86,15 @@ durable guard on that rule: it fails on any `render/` `ui/` `audio/` import, any
 `performance.*`, `new Date`) and any `Math.random`. M1.3 removed the deferred
 callback that used to sit inside `Engine.settle`, so the guard now passes on real
 engine code rather than describing future work.
+
+Close Call observation stays inside that same purity boundary. The engine uses
+`positionCrushIndex` after CR-1 has established survival, retains the minimum
+signed authoritative headroom across open/ascent/settlement ticks, and emits a
+self-contained stable-id event. No wallet or settlement branch reads the
+metadata. The client projector formats the event and suppresses duplicate ids;
+it has no outcome formula. Fake social actors run isolated engine states, so
+their Close Calls use the same seam instead of the former client-side static
+line, multiplier and `Math.round` path.
 
 `packages/sim/test/purity.test.ts` applies the same boundary to the calibration
 core and also bans ambient randomness. The harness receives or derives every
@@ -186,6 +196,11 @@ rendering and DOM code so that migration is a move, not a rewrite.
 > carry optional TP/SL parameters and rejection copy; all validation, cooldown,
 > trigger and money decisions remain in `@crush/engine`.
 >
+> **Close Calls keep the same event seam.** An eligible settlement returns
+> `settled → close-call → wallet-changed`. `core/close-calls.ts` consumes the
+> self-contained fact, preserves arrival order and suppresses repeated ids.
+> It never reads a render frame, clock or DOM value to decide qualification.
+>
 > `renderer.js` and `console.js` each carried a second inline copy of the P&L
 > formula for their live readouts; both now call `Engine.pnl`, so a displayed
 > figure cannot drift from the settled one (UI-2) when M1.4 adds `−θτ`.
@@ -230,16 +245,16 @@ dependencies before dependents) plus the explicit import order in `main.js`.
 Actual evaluation order:
 
 ```
- 1. config/constants.js          11. render/palette.js       21. core/engine.js
- 2. util/math.js                 12. render/renderer.js      22. core/bots.js
- 3. state/store.js               13. ui/dom-refs.js          23. ui/history.js
- 4. util/random.js               14. ui/feed.js              24. core/round.js
- 5. feed/SimulatedIndexSource.js 15. ui/overlay.js           25. loop/frame.js
- 6. feed/InterpBuffer.js         16. core/entry-window.js    26. main.js
+ 1. config/constants.js          11. render/palette.js       21. core/close-calls.ts
+ 2. util/math.js                 12. render/renderer.js      22. core/engine.js
+ 3. state/store.js               13. ui/dom-refs.js          23. core/bots.js
+ 4. util/random.js               14. ui/feed.js              24. ui/history.js
+ 5. feed/SimulatedIndexSource.js 15. ui/overlay.js           25. core/round.js
+ 6. feed/InterpBuffer.js         16. core/entry-window.js    26. loop/frame.js
  7. feed/index.js                17. core/gateway.js
  8. util/format.js               18. ui/console.js
  9. util/dom.js                  19. ui/sheets.js
-10. audio/audio.js               20. ui/responsible.js
+10. audio/audio.js               20. ui/responsible.js       27. main.js
 ```
 
 > **M1.4 note.** `core/entry-window.js` was inserted at step 16, ahead of
@@ -249,6 +264,11 @@ Actual evaluation order:
 > `round.js` because both `gateway.js` and `ui/console.js` need the predicate,
 > and importing `round.js` from `gateway.js` would close a
 > `round → gateway → round` cycle for one function.
+
+> **Close Calls note.** `core/close-calls.ts` evaluates at step 21 because both
+> the engine adapter and fake actors import its shared projector. Constructing
+> its in-memory id set performs no external side effect, so it adds no row to
+> the table below; later evaluation steps shift by one.
 
 The side effects that must fire in this relative order, and where they live:
 
@@ -261,10 +281,10 @@ The side effects that must fire in this relative order, and where they live:
 | 5 | Console listeners (stake, presets, leverage, dir, cash-out) | `ui/console.js` | 18 |
 | 6 | Sheet + scrim listeners | `ui/sheets.js` | 19 |
 | 7 | Limits / reality-check / sound listeners, 1 s session `setInterval` | `ui/responsible.js` | 20 |
-| 8 | `source.onTick(...)` tick wiring | `main.js` | 26 |
-| 9 | Boot: `resize()`, `setStake()`, `resetPhase('waiting')`, `rAF(frame)` | `main.js` | 26 |
+| 8 | `source.onTick(...)` tick wiring | `main.js` | 27 |
+| 9 | Boot: `resize()`, `setStake()`, `resetPhase('waiting')`, `rAF(frame)` | `main.js` | 27 |
 
-**Why the feed timer starting (step 7) before the tick subscription (step 26)
+**Why the feed timer starting (step 7) before the tick subscription (step 27)
 is safe:** `SimulatedIndexSource`'s constructor sets `this.live = false`, and
 `_tick()` is gated on `if (this.live)`. The timer emits nothing until
 `resetRound()` is called from `setPhase('running')` — roughly 9.4 s after boot

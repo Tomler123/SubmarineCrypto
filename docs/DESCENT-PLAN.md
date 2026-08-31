@@ -1,6 +1,6 @@
 # Crush Depth — The Descent Plan
 
-**Rev. 6 · 2026-08-31 · M1.7 completion state**
+**Rev. 7 · 2026-08-31 · Close Calls completion state**
 
 > This is the portable, plain-text mirror of the delivery-plan artifact. It is
 > the version to paste into any tool that cannot open a `claude.ai` link.
@@ -22,17 +22,31 @@ client code.
 | | |
 |---|---|
 | Phase complete | **1.0** — prototype, module split |
-| Phase in progress | **1.5** — 8 of 10 tasks done; M1.7 exit gate complete |
-| Engine | Pure, immutable TypeScript; entry validation, cooldown, auto-orders and caps live |
-| Tests | **495 passed, 4 skipped** across 39 files; package coverage gates pass (sim 96.04% lines, 84.55% branches, 100% functions) |
-| Spec documents | **2 of 2** — 90 acceptance ids across 15 categories |
-| Next planned work | Close Calls and M1.8 remain unstarted |
+| Phase in progress | **1.5** — 9 of 10 tasks done; Close Calls exit gate complete |
+| Engine | Pure, immutable TypeScript; entry validation, auto-orders, caps and authoritative Close Call facts live |
+| Tests | **519 passed, 4 skipped** across 42 files; package coverage gates pass (Close Call module 100%; sim 96.04% lines, 84.55% branches, 100% functions) |
+| Spec documents | **2 of 2** — 105 acceptance ids across 18 categories |
+| Next planned work | M1.8 remains unstarted |
 
 ---
 
-## What changed in Rev. 6
+## What changed in Rev. 7
 
-M1.7 adds ADR 0007 and the deterministic calibration evidence bundle:
+Close Calls add ADR 0008 and CC-1…CC-8 before implementation:
+
+- eligible successful ascent/round-end settlements use the minimum surviving
+  signed index headroom from the authoritative creeping crush line;
+- the inclusive v1 threshold is 50 bp, symmetric for Surface and Dive, and the
+  complete 500 ms ascent plus settlement tick remains exposed;
+- the engine emits `settled → close-call → wallet-changed` with a stable id and
+  self-contained closest-tick/settlement facts;
+- the client preserves event order, suppresses duplicate ids and formats only
+  emitted facts; DOM, timers, execution speed and playback pacing cannot decide
+  the result;
+- fake social actors retain seeded names/actions but now run isolated real
+  engine states instead of recomputing a static line, multiplier and P&L.
+
+Rev. 6 added ADR 0007 and the deterministic calibration evidence bundle:
 
 - `@crush/sim` drives the real engine through both the existing simulator and
   unchanged M1.6 replay source;
@@ -59,7 +73,7 @@ Earlier revisions closed M1.5's remaining declared-but-unenforced behavior:
 - the Gateway/UI carries the values and engine rejection copy without duplicating
   stricter client-side rules.
 
-Seven architecture decisions are recorded in `docs/decisions/`:
+Eight architecture decisions are recorded in `docs/decisions/`:
 
 - **0001** — monorepo layout and toolchain
 - **0002** — pure engine and the event seam; also settles crush-line authority
@@ -72,6 +86,8 @@ Seven architecture decisions are recorded in `docs/decisions/`:
   and recorded BTC fixture provenance
 - **0007** — deterministic Monte-Carlo streams, reference behaviors, statistics,
   simulator selection versus replay stress evidence, and release evidence tiers
+- **0008** — Close Call eligibility, minimum authoritative headroom, inclusive
+  50 bp boundary, ascent exposure, event ordering and duplicate identity
 
 M1.6 adds the sixth decision and the feed evidence bundle: `@crush/feed` now
 owns the TypeScript feed base, simulator, replay source, interpolation buffer,
@@ -170,6 +186,19 @@ disjoint 20,000-position simulator cohort reports 96.9492 %, with a two-sided
 99 % interval of 96.0046–97.8938 %. The canonical JSON retains every candidate
 and statistic; the compact Markdown report presents the review surface.
 
+**Close Calls — authoritative fake-social events.** `@crush/engine` observes
+every surviving post-entry tick after CR-1, including open, ascent and
+settlement ticks, and retains the minimum
+`d·(I_t−I_crush(τ))/I_crush(τ)`. Eligible positive-payout ascent and round-end
+settlements at or inside 0.5% emit one self-contained stable-id event. Crushes
+never qualify. Exact proximity ties retain the earliest tick.
+
+The client projector formats emitted direction, closest tick/headroom,
+settlement cause, multiplier and P&L, and suppresses later deliveries of the
+same id without sorting. Fake actors use isolated engine states, so no client
+module owns a second outcome formula. A Binance-derived recorded replay case
+produces the same non-empty Close Call event under fast and chunked pacing.
+
 ### Open
 
 **Release-scale θ validation remains open.** M1.7's 0.03 %/s value and RTP are
@@ -210,6 +239,7 @@ shipping legal later.
 | M1.5 | Risk caps and auto-orders | **Done** |
 | M1.6 | `ReplayIndexSource` + recorded BTC data | **Done** |
 | M1.7 | Monte-Carlo harness — calibrate θ | **Done** |
+| CC | Authoritative Close Calls in the fake social feed | **Done** |
 | M1.8 | PixiJS v8 scene port | Not started |
 
 **M1.5 — Risk caps and auto-orders** *(done)*
@@ -271,6 +301,19 @@ contains the target; all behavior/source cells report variance, uncertainty and
 max exposure; identical inputs reproduce byte-identical canonical data and are
 invariant to iteration/execution order. PL-6's larger release run remains a
 separate pre-launch criterion, not unfinished M1.7 implementation.
+
+**Close Calls — authoritative fake-social events** *(done)*
+
+*Delivered:* CC-1…CC-8; ADR 0008; inclusive 50 bp minimum surviving
+headroom; Surface/Dive and inside/equal/outside boundaries; complete ascent
+exposure; crush exclusion; self-contained stable-id engine events; ordered,
+idempotent client projection; and engine-backed seeded fake actors.
+
+*Exit criteria satisfied:* no Close Call fact is computed from a renderer,
+clock, DOM, interpolated value or fake-bot formula; replayed recorded ticks are
+byte-identical across scheduler pacing; duplicate delivery renders once; Close
+Calls do not alter wallet, settlement, eligibility, round or source behavior;
+the full test, coverage, typecheck and build gates pass before completion.
 
 **M1.8 — PixiJS v8 scene port**
 
@@ -347,22 +390,19 @@ gap is still cheap.
 
 ### Phase 5 — Scale and depth · 6000 m · Ongoing
 
-Additional markets, real social features replacing the simulated bot feed, Close
-Calls events, tournaments, horizontal scaling of the round server. Everything here
+Additional markets, real social delivery replacing the simulated bot identities,
+production Close Call fan-out, tournaments, horizontal scaling of the round server. Everything here
 is optional; nothing here should ever be traded ahead of a Phase 1.5 or Phase 2
 milestone.
 
 ---
 
-## Next steps after M1.7
+## Next steps after Close Calls
 
-1. **Add Close Calls to the fake social feed.** This is the remaining small
-   Phase 1.5 gameplay task and depends only on settled engine facts.
-
-2. **Port the scene to PixiJS v8 (M1.8).** Keep it last so renderer work cannot
+1. **Port the scene to PixiJS v8 (M1.8).** Keep it last so renderer work cannot
    choose or conceal authority-side game rules.
 
-Alongside those steps, and not blocked by either: **open the licensing
+Alongside that step, and not blocked by it: **open the licensing
 conversation** (M3.1). It is the longest lead time in the plan and the only item
 that can invalidate the design.
 
@@ -386,5 +426,5 @@ Ordered by how expensive they become if discovered late.
 
 ---
 
-*Crush Depth · delivery plan · Rev. 6 — M1.1 through M1.7 complete; Close Calls
-and M1.8 remain unstarted.*
+*Crush Depth · delivery plan · Rev. 7 — M1.1 through M1.7 and Close Calls
+complete; M1.8 remains unstarted.*
