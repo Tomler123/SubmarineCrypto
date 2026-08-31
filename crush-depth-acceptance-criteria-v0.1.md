@@ -260,6 +260,60 @@ Conventions: "tick" = one 125 ms server sample. "MUST" = release blocker. All mo
 - **UI-4** Entry/crush lines, O₂ gauge, and creeping crush line are visible whenever a position is open, on every supported viewport.
 - **UI-5** The payout math sheet (formula, θ, ascent rule, crush rule) is reachable within two taps at all times.
 
+## CC — Close Calls
+
+- **CC-1** A Close Call is informational evidence attached only to a successful
+  authoritative settlement. Eligible settlements have `reason ∈ {ascent,
+  round-end}`, `crushed = false`, and `payout > 0`. Manual, take-profit,
+  stop-loss and max-win ascents are treated identically. A crush is never a
+  successful Close Call, even when an earlier tick was inside the proximity
+  threshold.
+- **CC-2** Proximity is the position's signed index headroom from its
+  authoritative creeping crush line on an authoritative tick:
+  `headroom = d × (I_t − I_crush(τ)) / I_crush(τ)`, reported in basis points as
+  `headroomBps = 10,000 × headroom`. A surviving Surface and Dive position use
+  the same positive scale because `d` reverses both the comparison and sign.
+  The client and social-feed layer MUST NOT recompute the crush line,
+  multiplier, settlement, P&L, or this proximity rule.
+- **CC-3** The v1 threshold is **50 basis points (0.5%)**, inclusive, measured
+  against the crush line: a surviving tick just inside and exactly on 50 bp
+  qualifies; one representable value outside does not. Qualification uses the
+  authoritative directional index comparison against
+  `I_crush × (1 ± 0.005)`, so equality behavior does not depend on formatting or
+  a rounded displayed percentage. Changing this threshold is a versioned game
+  and audit assumption.
+- **CC-4** The authoritative closest approach is the minimum positive CC-2
+  headroom observed over every authoritative tick after entry while the
+  position remains exposed, including open ticks, every tick of the 500 ms
+  ascent, and the settlement tick. The entry-execution tick is not sampled. If
+  two ticks have exactly equal minimum headroom, retain the earliest tick.
+  Render frames, interpolation and client clocks never enter the observation.
+- **CC-5** An eligible qualifying settlement emits exactly one `close-call`
+  engine event immediately after its `settled` event and before
+  `wallet-changed`. The event contains a stable id, position id, direction,
+  threshold, authoritative closest tick/index/crush line/headroom, and the
+  complete authoritative settlement (reason, ascent cause, settlement tick,
+  multiplier, stake, payout and P&L). Social-feed copy may format these facts
+  but may not derive new outcome facts from them.
+- **CC-6** Duplicate suppression is by the authority-supplied Close Call event
+  id. The first occurrence is rendered and later occurrences of the same id
+  are ignored. Distinct events retain authoritative arrival order; DOM state,
+  animation completion, presentation timers and feed playback speed cannot
+  reorder them or change qualification.
+- **CC-7** Close Calls MUST NOT change wallet fields, settlement, position or
+  round state, player eligibility, cooldown, feed selection, source ticks, or
+  any other engine outcome. For identical ticks, actions and configuration,
+  enabling or consuming Close Call events produces byte-identical money and
+  settlement facts. Replaying the same settlement produces byte-identical
+  Close Call facts and id.
+- **CC-8** Fake social actors may use seeded presentation-only choices for
+  name, direction, stake, leverage and exit timing, but any Close Call they
+  publish MUST come from an isolated real `@crush/engine` state and its emitted
+  settlement/Close Call events. The fake layer MUST NOT synthesize or
+  recompute multiplier, crush, payout, P&L, settlement, or proximity. Ambient
+  randomness, execution speed, wall-clock time and DOM state cannot affect the
+  result for a fixed seed and authoritative tick/action script.
+
 ## PF — Performance
 
 - **PF-1** 60 fps median / ≥ 45 fps p5 on the reference mid-range device set during a volatile round with a position open; auto-degradation tiers engage below threshold without gameplay change.
