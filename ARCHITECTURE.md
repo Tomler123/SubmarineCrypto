@@ -62,7 +62,7 @@ apps/client/src/
 
 ---
 
-## Target packages (created at M1.2, filled in later)
+## Target packages (created at M1.2, filled through M1.6)
 
 The workspaces exist with manifests, tsconfigs and project references so that
 each milestone fills a package rather than inventing one. Placeholder barrels
@@ -73,7 +73,7 @@ them.
 |---|---|---|
 | `@crush/ledger` | **live now** | branded `Cents`, round-half-away-from-zero, arithmetic guards |
 | `@crush/engine` | **live through M1.5** | pure position lifecycle, oxygen, crush, settlement, entry validation/cooldown, TP/SL/max-win triggers and payout caps |
-| `@crush/feed` | M1.6 | `IndexSource` contract, simulated / replay / ws sources, `InterpBuffer` |
+| `@crush/feed` | **live through M1.6** | TypeScript `IndexSource` contract/base gate, published transform, simulated and replay sources, `InterpBuffer`, fixture parser |
 | `@crush/gateway` | M2.2 | request/ack seam, optimistic mirror |
 | `@crush/sim` | M1.7 | Monte-Carlo RTP harness, behaviour models |
 
@@ -94,7 +94,7 @@ These four seams are the reason the split exists. Treat them as contracts.
 
 ### 1. `feed/` — the price-feed boundary (most important)
 
-`SimulatedIndexSource` implements the `IndexSource` contract:
+`SimulatedIndexSource` and `ReplayIndexSource` implement the `IndexSource` contract:
 `onTick(fn) → {t, v, ret}`, `resetRound()`, `halt()`, `onAlarm(fn)`.
 
 There is deliberately **no `start()`/`stop()`** (FEED-F5). A source self-starts
@@ -106,18 +106,28 @@ implementation is not written against a surface nothing uses.
 
 In Phase 2 a `WsIndexSource` implements the same contract and replaces it in
 `feed/index.js`. **Nothing outside `feed/` may know which source is running.**
-No other module imports `SimulatedIndexSource` directly — they import the
-`source` singleton from `feed/index.js`.
+The client feed seam keeps the simulator as the default and accepts
+`?feed=replay` as an explicit replay opt-in; no other client module imports a
+concrete source.
 
-**Every source extends `IndexSourceBase` (`feed/monotonic.js`)**, which owns the
+**Every source extends `IndexSourceBase` (`packages/feed/src/index-source-base.ts`)**, which owns the
 subscriber list and the single emit path, `_publish`. That path is the FI-8
 gate: a tick whose timestamp is non-finite or not strictly greater than the last
 accepted one is dropped before any subscriber sees it, counted in
 `rejectedTicks`, and reported through `onAlarm`. The gate lives at the seam
-rather than in each implementation on purpose — the simulator is monotonic
-only by accident of `performance.now()`, whereas `ReplayIndexSource` reads
-timestamps out of a file and a `WsIndexSource` reads them off the wire. Because
-`_publish` is the only way out, an implementation cannot opt out of the rule.
+rather than in each implementation on purpose — the simulator's injected clock
+and replay's file timestamps both pass through the same gate. Because `_publish`
+is the only way out, an implementation cannot opt out of the rule. Replay's
+explicit `resetRound()` rewind is the named finite-fixture exception: it resets
+the high-water mark and preserves original fixture timestamps, so cross-round
+rewind is tested separately from live-source FEED-F3 continuity.
+
+`ReplayIndexSource` is scheduler-independent at its core. Its injected
+`ReplayScheduler` advances only the fixture-start-anchored 125 ms selection
+boundaries; it never supplies a price or timestamp. FI-10 selects the latest
+recorded 100 ms row at or before each boundary, emits that original row once,
+and never fills gaps. The published FI-1 transform and its explicit initial
+variance live in the package alongside the source.
 
 The executable definition of all of this is
 `apps/client/test/support/index-source-contract.js`, which every source runs

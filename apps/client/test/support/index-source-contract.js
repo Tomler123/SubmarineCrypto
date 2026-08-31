@@ -41,6 +41,9 @@
                              rejection is testable without this suite knowing
                              how the source stamps. Omit it and the rejection
                              tests are skipped.
+     rewindsClock         → optional; true only for a finite replay whose
+                             resetRound deliberately returns to the fixture's
+                             original timestamps via _resetMonotonicity.
 ================================================================ */
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 
@@ -225,7 +228,7 @@ export function describeIndexSourceContract(name, harness){
       });
 
       /**
-       * FEED-F3, as a contract rule. The boundary is the one place two
+       * FEED-F3, as a live-source contract rule. The boundary is the one place two
        * emissions can land inside a single clock reading, and `InterpBuffer`
        * divides by `(q.t - p.t)`, so a duplicate there is a division by zero
        * for any consumer that interpolates across the pair.
@@ -233,7 +236,7 @@ export function describeIndexSourceContract(name, harness){
        * Asserted across the UNBROKEN series — every tick of every round,
        * not per-round — because that is the series a consumer stores.
        */
-      it('never repeats a timestamp across a round boundary (FEED-F3)', () => {
+      it.runIf(!harness.rewindsClock)('never repeats a timestamp across a round boundary (FEED-F3)', () => {
         const ticks = record(src);
         for (let r = 0; r < 20; r++){
           src.resetRound();
@@ -247,6 +250,27 @@ export function describeIndexSourceContract(name, harness){
           if (ticks[i].t <= ticks[i - 1].t) duplicates++;
         }
         expect(duplicates, 'a boundary duplicate is a zero divisor downstream').toBe(0);
+      });
+
+      it.runIf(harness.rewindsClock)('explicitly rewinds to original fixture time on restart (FI-12)', () => {
+        const ticks = record(src);
+        src.resetRound();
+        harness.advance(src, 20);
+        src.halt();
+        const firstLength = ticks.length;
+        src.resetRound();
+        harness.advance(src, 20);
+        src.halt();
+        const rounds = [ticks.slice(0, firstLength), ticks.slice(firstLength)];
+
+        expect(rounds[0].length).toBeGreaterThan(10);
+        expect(rounds[1].length).toBeGreaterThan(10);
+        expect(rounds[1][0].t).toBe(rounds[0][0].t);
+        for (const round of rounds){
+          for (let index = 1; index < round.length; index++){
+            expect(round[index].t).toBeGreaterThan(round[index - 1].t);
+          }
+        }
       });
 
       /**

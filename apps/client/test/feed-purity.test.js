@@ -34,12 +34,13 @@ import { describe, expect, it, vi } from 'vitest';
    throws. Vitest's cwd is the repo root. */
 const CLIENT_SRC = resolve(process.cwd(), 'apps/client/src');
 const FEED_SRC = join(CLIENT_SRC, 'feed');
+const PACKAGE_FEED_SRC = resolve(process.cwd(), 'packages/feed/src');
 
 function sourceFiles(dir){
   return readdirSync(dir).flatMap((entry) => {
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) return sourceFiles(full);
-    return full.endsWith('.js') ? [full] : [];
+    return full.endsWith('.js') || full.endsWith('.ts') ? [full] : [];
   });
 }
 
@@ -112,7 +113,7 @@ describe('FI-7 — the feed touches no money type and no settlement API', () => 
   ];
 
   it('no feed module names a money symbol or a settlement entry point', () => {
-    const files = sourceFiles(FEED_SRC);
+    const files = [...sourceFiles(FEED_SRC), ...sourceFiles(PACKAGE_FEED_SRC)];
     expect(files.length).toBeGreaterThan(0);
     for (const file of files){
       const text = read(file);
@@ -123,7 +124,7 @@ describe('FI-7 — the feed touches no money type and no settlement API', () => 
   });
 
   it('the feed imports nothing from core, ui, render or audio', () => {
-    for (const file of sourceFiles(FEED_SRC)){
+    for (const file of [...sourceFiles(FEED_SRC), ...sourceFiles(PACKAGE_FEED_SRC)]){
       const text = read(file);
       expect(
         /from\s+['"][^'"]*\/(core|ui|render|audio)\//.test(text),
@@ -231,7 +232,7 @@ describe('SIM-ONLY fencing stays intact', () => {
   ];
 
   it('every SIM-ONLY constant is declared inside SimulatedIndexSource and nowhere else', () => {
-    const simFile = join(FEED_SRC, 'SimulatedIndexSource.js');
+    const simFile = join(PACKAGE_FEED_SRC, 'simulated-index-source.ts');
     const simText = read(simFile);
     for (const name of SIM_ONLY_CONSTANTS){
       expect(simText.includes(name), `${name} missing from the simulator`).toBe(true);
@@ -240,7 +241,7 @@ describe('SIM-ONLY fencing stays intact', () => {
     // The fence: no other client module may reference them. If one leaks into
     // the renderer or the engine adapter, swapping in a real source silently
     // changes behaviour somewhere outside the feed.
-    for (const file of sourceFiles(CLIENT_SRC)){
+    for (const file of [...sourceFiles(CLIENT_SRC), ...sourceFiles(PACKAGE_FEED_SRC)]){
       if (file === simFile) continue;
       const text = read(file);
       for (const name of SIM_ONLY_CONSTANTS){
@@ -250,7 +251,7 @@ describe('SIM-ONLY fencing stays intact', () => {
   });
 
   it('none of the SIM-ONLY constants is exported', () => {
-    const simText = read(join(FEED_SRC, 'SimulatedIndexSource.js'));
+    const simText = read(join(PACKAGE_FEED_SRC, 'simulated-index-source.ts'));
     for (const name of SIM_ONLY_CONSTANTS){
       expect(
         new RegExp(`export\\s+const\\s+${name}\\b`).test(simText),
@@ -262,7 +263,7 @@ describe('SIM-ONLY fencing stays intact', () => {
   it('every SIM-ONLY constant declaration carries the SIM-ONLY marker', () => {
     // The marker is what tells the M2.1 author which lines do not cross. A
     // constant added without one is the failure mode this guards.
-    const lines = read(join(FEED_SRC, 'SimulatedIndexSource.js')).split('\n');
+    const lines = read(join(PACKAGE_FEED_SRC, 'simulated-index-source.ts')).split('\n');
     for (let i = 0; i < lines.length; i++){
       const decl = lines[i].match(/^const\s+([A-Z][A-Z0-9_]*)\s*=/);
       if (!decl) continue;

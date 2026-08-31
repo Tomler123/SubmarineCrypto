@@ -16,6 +16,54 @@ Conventions: "tick" = one 125 ms server sample. "MUST" = release blocker. All mo
 - **FI-6** The effective amplification v/max(σ,σ_floor) MUST never exceed 35×.
 - **FI-7** No component of index computation reads any RNG. Static analysis / code review checklist item.
 - **FI-8** Tick timestamps are server-clock, monotonic; a tick with a non-increasing timestamp is rejected and alarmed.
+- **FI-9** `ReplayIndexSource` accepts a non-empty recorded-price fixture only
+  when every row has exactly one finite timestamp and one finite, strictly
+  positive BTC price, and the row timestamps are strictly increasing. Empty,
+  malformed, or non-monotonic fixtures fail before the opening tick with a
+  deterministic error code and row index; no valid prefix is emitted.
+- **FI-10** M1.6's recorded 100 ms fixtures map to the authoritative 125 ms
+  game cadence without interpolation. Anchor a 125 ms grid at the fixture's
+  first timestamp. At each grid boundary select the latest original row whose
+  timestamp is at or before that boundary, emit that original row at most once,
+  and skip all other rows. The selected row keeps its original timestamp and
+  price. Consequently the selected timestamp gaps are deterministically 100 ms
+  or 200 ms for a gap-free 100 ms fixture while the sequence averages 8 Hz;
+  neither a 125 ms timestamp nor a price between recorded observations is
+  invented. A fixture gap emits no repeated or carried-forward row: the next
+  recorded row becomes eligible only at the first grid boundary at or after its
+  own timestamp.
+- **FI-11** Replay applies FI-1 only to the selected authoritative price rows,
+  in their emitted order. The opening row emits `I_0 = 1000` and `ret = 0`;
+  the transform starts with `sigmaSquared = sigma_floor^2`, and every later row
+  updates raw log return, EWMA variance, clamped z-score, index, then index
+  return in exactly that order. Skipped 100 ms rows never enter the transform.
+  This initial variance and operation order are part of the versioned replay
+  contract and golden-vector tests.
+- **FI-12** Replay lifecycle is explicit and deterministic. Construction is
+  dormant. `resetRound()` rewinds the fixture, grid, transform, EOF state and
+  monotonic high-water mark, then synchronously emits the same opening tick.
+  `halt()` prevents further emission. A later `resetRound()` restarts from the
+  beginning. EOF makes the source dormant; additional playback advances are
+  no-ops until reset. Repeated runs do not retain transform or cursor state,
+  while FI-8 rejection counters remain lifetime audit data.
+- **FI-13** Replay output is a pure function of fixture bytes and explicit
+  replay/index configuration. Tick values, timestamps, ordering, EOF and alarm
+  behavior MUST NOT depend on playback speed, scheduler time, `Date.now()`,
+  `performance.now()`, timers, RNG, DOM state, or interpolation frames. Any
+  paced adapter uses an injected scheduler; the deterministic replay core is
+  runnable by explicit synchronous advancement in tests.
+- **FI-14** Fixture provenance is committed beside every recorded fixture:
+  primary source, venue and symbol, UTC interval, original sampling granularity,
+  every transformation and selection step, row count, and SHA-256 checksum of
+  the committed bytes. At least one fixture covers a documented real flash
+  crash or similarly violent interval. No row described as real market data may
+  be hand-authored.
+- **FI-15** Feeding the same replay fixture into two fresh engine states with
+  the same engine configuration and identical tick-indexed action script
+  produces byte-identical accepted ticks, engine events and settlement artifact.
+  The violent fixture MUST exercise a meaningful adverse path such as crush
+  precedence or exposure during the 500 ms ascent. Changing scheduler pacing
+  MUST NOT change the artifact.
 
 ## RL — Round Lifecycle
 

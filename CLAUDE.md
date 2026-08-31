@@ -72,9 +72,17 @@ then eligibility (`LOSS_LIMIT_REACHED` → `ENTRY_CLOSED` → `POSITION_OPEN` �
 438 tests pass across 27 files; `packages/*` remains at 100% line, function and
 branch coverage.
 
-M1.6 replay source, M1.7 Monte-Carlo harness and M1.8 PixiJS port are unstarted.
-**θ is not yet calibrated** — 0.25 %/s is the spec's opening value and M1.7 sets
-the real one against RTP 96.5 %.
+M1.6 is complete: `@crush/feed` owns the shared TypeScript feed base, published
+index transform, simulator, interpolation buffer, replay source and fixture
+parser. Two compact Binance BTCUSDT fixtures are committed with provenance;
+the client still defaults to the simulator and opts into replay only through
+`feed/index.js` (`?feed=replay`). The approved 100 ms → 125 ms policy and the
+explicit `sigma_floor²` transform initial state are acceptance criteria FI-10
+and FI-11, with the decision recorded in ADR 0006.
+
+M1.7 Monte-Carlo harness and M1.8 PixiJS port remain unstarted. **θ is not yet
+calibrated** — 0.25 %/s is the spec's opening value and M1.7 sets the real one
+against RTP 96.5 %.
 
 ### Where things live
 
@@ -159,8 +167,9 @@ crush at the first tick the index reaches the line I_e·(1 − d·(1 − θτ)/L
 
 > **Current vs. target.** The npm-workspaces monorepo and TypeScript build are
 > live. `@crush/ledger` and the pure `@crush/engine` are populated; the remaining
-> client is still ES modules under `apps/client` until M1.8. `packages/feed`,
-> `packages/gateway` and `packages/sim` remain milestone-shaped placeholders.
+> client is still ES modules under `apps/client` until M1.8. `packages/gateway`
+> and `packages/sim` remain milestone-shaped placeholders; `packages/feed` is
+> populated through M1.6.
 
 ```
 /apps/client          React + PixiJS v8 + Zustand + Framer Motion (mobile-first, portrait)
@@ -184,7 +193,9 @@ crush at the first tick the index reaches the line I_e·(1 − d·(1 − θτ)/L
 4. ~~Round 90 s, entry cutoff T−5 s, intermission 8 s.~~ — **done (M1.4)**.
 5. ~~Auto cash-out (take-profit) + stop-loss, runtime entry validation and authoritative-tick re-entry cooldown.~~ — **done (M1.5)**. TP/SL are snapshotted at entry, use consecutive-tick crossings, and share the normal 500 ms ascent; `CR-6b` fixes their τ alignment.
 6. ~~Max-win auto-surface at 50×, with the unconditional payout cap kept separate.~~ — **done (M1.5)** (PL-4/AO-5, ADRs 0004 and 0005).
-7. `ReplayIndexSource` that replays recorded real BTC 100 ms data files.
+7. ~~`ReplayIndexSource` that replays recorded real BTC 100 ms data files.~~
+   **done (M1.6)** — deterministic 125 ms-grid selection, published transform,
+   primary-source fixtures, provenance, and engine settlement evidence.
 8. Monte-Carlo harness in `/packages/sim`: calibrate θ to RTP 96.5 % across behavior models; output a report artifact.
 9. Close Calls events in the (still fake) social feed.
 10. PixiJS scene port of the Canvas 2D renderer — last, after logic is tested.

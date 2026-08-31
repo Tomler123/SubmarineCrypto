@@ -11,6 +11,7 @@
     "types": ["node"],
     "paths": {
       "@crush/engine": ["./packages/engine/src/index.ts"],
+      "@crush/feed": ["./packages/feed/src/index.ts"],
       "@crush/ledger": ["./packages/ledger/src/index.ts"]
     }
   },

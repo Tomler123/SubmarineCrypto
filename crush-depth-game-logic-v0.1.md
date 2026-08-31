@@ -299,4 +299,4 @@ Position it as "the first market-driven crash game," not "the first crypto price
 3. ~~Auto cash-out / stop-loss inputs (collapsed row under leverage), runtime
    validation, cooldown and max-win auto-surface.~~ **Done (M1.5).**
 4. Close Calls in the fake feed.
-5. Sim source gains a replay mode fed by recorded real BTC 100 ms data (best possible pre-phase-2 test harness).
+5. **Done in M1.6:** the feed seam gains a deterministic replay mode fed by documented recorded real BTC 100 ms data (best possible pre-phase-2 test harness).

@@ -94,7 +94,7 @@ Desktop.ini
 $RECYCLE.BIN/
 
 # --- Recorded feed data ---------------------------------------------------
-# ReplayIndexSource (M1.7) replays recorded BTC 100 ms files. Small committed
+# ReplayIndexSource (M1.6) replays recorded BTC 100 ms files. Small committed
 # fixtures live under packages/feed/fixtures/ and are kept; bulk captures are
 # not. Drop large captures in data/recordings/.
 data/recordings/

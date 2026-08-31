@@ -1,6 +1,6 @@
 # Crush Depth — The Descent Plan
 
-**Rev. 4 · 2026-08-30 · M1.5 completion state**
+**Rev. 5 · 2026-08-31 · M1.6 completion state**
 
 > This is the portable, plain-text mirror of the delivery-plan artifact. It is
 > the version to paste into any tool that cannot open a `claude.ai` link.
@@ -22,11 +22,11 @@ client code.
 | | |
 |---|---|
 | Phase complete | **1.0** — prototype, module split |
-| Phase in progress | **1.5** — 6 of 10 tasks done; M1.5 exit gate complete |
+| Phase in progress | **1.5** — 7 of 10 tasks done; M1.6 exit gate complete |
 | Engine | Pure, immutable TypeScript; entry validation, cooldown, auto-orders and caps live |
-| Tests | **438 green** across 27 files; 100% line/function/branch coverage on `packages/*` |
+| Tests | **474 passed, 4 skipped** across 32 files; package coverage gates pass (feed 97.36% lines, 95% branches, 94.44% functions) |
 | Spec documents | **2 of 2** — 82 acceptance ids across 14 categories |
-| Next milestone | **M1.6** — `ReplayIndexSource` + recorded BTC data |
+| Next milestone | **M1.7** — Monte-Carlo harness and θ calibration |
 
 ---
 
@@ -46,7 +46,7 @@ Rev. 4 closes M1.5's remaining declared-but-unenforced behavior:
 - the Gateway/UI carries the values and engine rejection copy without duplicating
   stricter client-side rules.
 
-Five architecture decisions are recorded in `docs/decisions/`:
+Six architecture decisions are recorded in `docs/decisions/`:
 
 - **0001** — monorepo layout and toolchain
 - **0002** — pure engine and the event seam; also settles crush-line authority
@@ -55,6 +55,15 @@ Five architecture decisions are recorded in `docs/decisions/`:
 - **0003** — oxygen, tick-derived τ, round timings
 - **0004** — max-win cap, entry idempotency, RL-1 phase guard
 - **0005** — auto-order crossings, entry validation precedence and cooldown
+- **0006** — deterministic replay selection, published transform initialization,
+  and recorded BTC fixture provenance
+
+M1.6 adds the sixth decision and the feed evidence bundle: `@crush/feed` now
+owns the TypeScript feed base, simulator, replay source, interpolation buffer,
+published index transform, and fixture parser. The replay uses the approved
+fixture-start 125 ms grid, latest-at-or-before selection, original timestamps,
+and no gap filling. Binance BTCUSDT aggregate trades provide compact derived
+100 ms fixtures, including a rapid 8.05% violent interval.
 
 ---
 
@@ -168,7 +177,7 @@ shipping legal later.
 | M1.3 | Pure engine, zero DOM, integer cents | **Done** |
 | M1.4 | Oxygen, round timings, entry cutoff | **Done** |
 | M1.5 | Risk caps and auto-orders | **Done** |
-| M1.6 | `ReplayIndexSource` + recorded BTC data | Not started |
+| M1.6 | `ReplayIndexSource` + recorded BTC data | **Done** |
 | M1.7 | Monte-Carlo harness — calibrate θ | Not started |
 | M1.8 | PixiJS v8 scene port | Not started |
 
@@ -198,6 +207,17 @@ produce.
 
 *Exit criteria:* byte-identical settlement across two runs of the same replay
 file. At least one recorded flash-crash segment in the fixture set.
+
+*Delivered:* FI-9–FI-15 acceptance criteria, deterministic lifecycle/EOF/gap
+behavior, explicit injected-scheduler pacing, Binance-derived calm and violent
+fixtures with SHA-256 provenance, and a scripted 25× Surface ascent that
+settles after material adverse exposure. The client remains simulator-default;
+`?feed=replay` is handled only inside the feed seam.
+
+*Exit criteria satisfied:* replay source exists behind the shared contract;
+fixture provenance and checksum are committed; fresh runs and different pacing
+produce byte-identical tick/event/settlement artifacts; the full test,
+coverage, typecheck, and build gates pass.
 
 **M1.7 — Monte-Carlo harness, calibrate θ to 96.5 % RTP**
 
@@ -294,18 +314,14 @@ milestone.
 
 ## Next four steps
 
-1. **Build `ReplayIndexSource` (M1.6).** *Why first:* every determinism claim in
-   the certification bundle rests on replaying a real series, and M1.7's RTP
-   numbers are only as trustworthy as the price data behind them.
-
-2. **Run the Monte-Carlo harness and calibrate θ (M1.7).** *Why second:* θ is the
+1. **Run the Monte-Carlo harness and calibrate θ (M1.7).** *Why first:* θ is the
    single business dial and is currently a placeholder. It needs M1.6's data and
    M1.5's complete rule set to produce a number worth committing to.
 
-3. **Add Close Calls to the fake social feed.** This is the remaining small
+2. **Add Close Calls to the fake social feed.** This is the remaining small
    Phase 1.5 gameplay task and depends only on settled engine facts.
 
-4. **Port the scene to PixiJS v8 (M1.8).** Keep it last so renderer work cannot
+3. **Port the scene to PixiJS v8 (M1.8).** Keep it last so renderer work cannot
    choose or conceal authority-side game rules.
 
 Alongside all four, and not blocked by any of them: **open the licensing
@@ -324,7 +340,7 @@ Ordered by how expensive they become if discovered late.
 | Correlated exposure across all players | **High** | Unlike RNG crash games, one real price move resolves every position in the same direction simultaneously. Aggregate exposure caps and a kill switch are Phase 2 requirements, not Phase 5 polish. |
 | θ uncalibrated — RTP is currently unknown | **High** | 0.25 %/s is a placeholder. RTP is the number a regulator checks first. Let M1.7 set θ and keep the report as a committed artifact. Quote no RTP figure until then. |
 | Declared-but-unenforced criteria | **Medium** | The known M1.5 gaps are closed. Preserve the tests-first rule and audit future tests for assertions that merely ratify current behavior. |
-| Simulator-shaped assumptions leaking into design | **Medium** | `SIM-ONLY` fencing is good discipline, but anti-run pressure and squalls make rounds dramatic in ways real BTC will not reliably reproduce. Validate feel against `ReplayIndexSource` (M1.6) before tuning further. |
+| Simulator-shaped assumptions leaking into design | **Medium** | `SIM-ONLY` fencing is good discipline, but anti-run pressure and squalls make rounds dramatic in ways real BTC will not reliably reproduce. M1.6 now provides the replay comparison; keep it in the M1.7 calibration evidence. |
 | Responsible-play controls enforced client-side | **Medium** | Fine for a prototype, not compliant for real money. Budget the server-side move into Phase 2 rather than treating it as a Phase 3 surprise. |
 | `apps/client` is unchecked JavaScript | **Low** | Deliberate — M1.8 replaces `render/` wholesale, so typing it now is work thrown away. The risk is scope creep putting game logic in the adapter. Keep new logic in `packages/`. |
 | No trailing stop above 1× | **Low** | Intentional v1 scope: `AO-3` confines SL to (0,1). A profit-protecting trailing stop needs a separately specified order type rather than silently widening stop-loss semantics. |
@@ -332,5 +348,5 @@ Ordered by how expensive they become if discovered late.
 
 ---
 
-*Crush Depth · delivery plan · Rev. 4 — M1.1 through M1.5 complete, 438 tests
-green; M1.6 is next.*
+*Crush Depth · delivery plan · Rev. 5 — M1.1 through M1.6 complete; M1.7 is
+next.*
