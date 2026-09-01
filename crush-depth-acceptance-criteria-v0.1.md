@@ -323,12 +323,14 @@ Conventions: "tick" = one 125 ms server sample. "MUST" = release blocker. All mo
   Canvas 2D renderer remains a conforming implementation and stays the default
   until visual parity has been reviewed; `?renderer=pixi` is the explicit
   opt-in and is handled only inside the renderer seam.
-- **SC-2** A renderer consumes a `SceneModel` — a plain, serialisable snapshot
-  projected from authoritative client state — and MUST NOT read `S`, the
-  engine, the interpolation buffer, the DOM or a clock on its own. The
+- **SC-2** The PixiJS scene consumes a `SceneModel` — a plain, serialisable
+  snapshot projected from authoritative client state — and MUST NOT read `S`,
+  the engine, the interpolation buffer, the DOM or a clock on its own. The
+  retained, unmodified Canvas reference is a temporary compatibility adapter
+  and is explicitly exempt while it remains the live parity baseline. The
   projection is a pure function `(input) => SceneModel` with no timers, no
-  RNG, no DOM and no clock reads; identical input produces a deeply equal
-  model on every call and in any execution order.
+  RNG, no DOM and no clock reads; identical input produces a deeply equal model
+  on every call and in any execution order.
 - **SC-3** The scene MUST NOT make or influence a gameplay decision. No
   renderer, projection or scene module may compute or alter a multiplier,
   crush line, payout, P&L, settlement, eligibility, cooldown, wallet field,

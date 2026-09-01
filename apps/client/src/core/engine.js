@@ -1,7 +1,7 @@
 import { S } from '../state/store.js';
 import { now } from '../util/math.js';
 import { fmt$ } from '../util/format.js';
-import { FX } from '../render/renderer.js';
+import { FX } from '../render/effects.js';
 import { Au } from '../audio/audio.js';
 import { feedMsg } from '../ui/feed.js';
 import { toast } from '../ui/overlay.js';

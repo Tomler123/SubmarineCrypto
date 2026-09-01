@@ -100,7 +100,9 @@ describe('SC-1 — no module outside render/ knows which renderer is running', (
       if (file.startsWith(RENDER_DIR)) continue;
       const text = readFileSync(file, 'utf8');
       expect(text).not.toContain('createPixiRenderer');
+      expect(text).not.toContain('createCanvasRenderer');
       expect(text).not.toContain('pixi.js');
+      expect(text).not.toContain("render/renderer.js");
     }
   });
 

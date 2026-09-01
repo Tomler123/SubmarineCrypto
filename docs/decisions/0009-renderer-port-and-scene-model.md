@@ -102,13 +102,15 @@ reads the DOM cannot run headless in a test.
   and still owns its own `window` resize listener, so the two renderers are not
   yet symmetric in how they *source* state. That asymmetry is deliberate and
   temporary; it ends when Canvas is retired.
-- `FX` and `trail` are still imported from `render/renderer.js` by
-  `core/engine.js` and `core/round.js`. Those are Canvas-specific effect
-  buffers, and decoupling them is a change to gameplay-adjacent modules that
-  M1.8 does not need and should not make. The documented import cycles are
-  therefore unchanged in shape.
-- No engine, ledger, feed, gateway or settlement code was touched. Package
-  coverage gates and their thresholds are unchanged.
+- `FX` and `trail` remain Canvas-backed while Canvas is the reference, but
+  `core/engine.js` and `core/round.js` import them through the small
+  `render/effects.js` facade. That preserves their behaviour while keeping
+  concrete renderer names inside `render/`; the documented import cycles are
+  otherwise unchanged in shape.
+- No package engine, ledger, feed, gateway or settlement code was touched. The
+  client engine adapter and round machine now use the renderer-owned effects
+  facade only; their gameplay behaviour is unchanged. Package coverage gates
+  and their thresholds are unchanged.
 - `allowImportingTsExtensions` is enabled for `apps/client`. Client `.ts`
   modules already imported each other by real `.ts` path (`./close-calls.ts`),
   but only from `.js` callers, where `checkJs: false` hid it from tsc. A

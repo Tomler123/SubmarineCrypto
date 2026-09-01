@@ -54,6 +54,7 @@ apps/client/src/
     scene-model.ts      pure state -> SceneModel projection + shared mappings
     pixi-scene.ts       PixiJS v8 RendererPort
     canvas-port.js      the retained Canvas 2D renderer as a RendererPort
+    effects.js          Canvas-backed presentation-effects compatibility facade
     palette.js          depth-zone colour ramp, zone naming
     renderer.js         Canvas 2D renderer (canvas, view, FX, quality, draw, sprites)
   ui/
@@ -240,13 +241,13 @@ implementation is running** — the same rule the feed seam has, enforced the sa
 way, by a test that scans the client source tree
 (`apps/client/test/renderer-selection.test.js`).
 
-A renderer is a **sink**. `render(model): void` has no return channel, so there
-is no path by which a renderer could inform a gameplay decision; SC-3 is a
-property of the signature rather than a convention. What it receives is a
-`SceneModel`: a plain, serialisable snapshot projected by
-`render/scene-model.ts` from authoritative client state. A renderer reads that
-and nothing else — not `S`, not the engine, not `buffer`, not the DOM, not a
-clock.
+The Pixi scene is a **sink**. `render(model): void` has no return channel, so
+there is no path by which it could inform a gameplay decision; SC-3 is a
+property of the signature rather than a convention. It receives a `SceneModel`:
+a plain, serialisable snapshot projected by `render/scene-model.ts` from
+authoritative client state, and reads nothing else — not `S`, not the engine,
+not `buffer`, not the DOM, not a clock. The unmodified Canvas reference is the
+documented temporary compatibility exception while it remains the baseline.
 
 **The projection is pure**, and that purity is load-bearing rather than
 stylistic. `t` and `dt` are parameters because the caller owns the clock; there
@@ -279,10 +280,11 @@ retired after visual-parity review:
   renderer still reads `S` / `Engine` / `buffer` directly and still owns its own
   `window` resize listener. The two renderers are not yet symmetric in how they
   *source* state.
-- `FX` and `trail` are still imported from `render/renderer.js` by
-  `core/engine.js` and `core/round.js`. They are Canvas-specific effect buffers;
-  decoupling them is a change to gameplay-adjacent modules that M1.8 does not
-  need. The documented import cycles are therefore unchanged in shape.
+- `FX` and `trail` remain Canvas-backed while Canvas is the reference, but
+  `core/engine.js` and `core/round.js` receive them through
+  `render/effects.js`. The facade keeps the concrete Canvas module inside
+  `render/`, so no gameplay-adjacent module names an implementation. The
+  documented import cycles are otherwise unchanged in shape.
 
 See `docs/decisions/0009-renderer-port-and-scene-model.md`.
 
@@ -339,12 +341,13 @@ Actual evaluation order:
 > moved. `render/index.js` (step 30) constructs the selected port at module
 > scope — a new row in the table below — and `render/boot.js` (step 31)
 > registers the resize listener that replaces `main.js`'s direct `resize()`
-> call. `scene-model.ts`, `port.ts`, `pixi-scene.ts` and `canvas-port.js` carry
-> no module-level side effects.
+> call. `scene-model.ts`, `port.ts`, `pixi-scene.ts`, `canvas-port.js` and
+> `effects.js` carry no module-level side effects.
 >
 > `render/renderer.js` still evaluates at step 12, ahead of all of these,
-> because `core/engine.js` and `core/round.js` import `FX` and `trail` from it.
-> That is the coupling M1.8 deliberately left alone; see boundary 5.
+> through the side-effect-free `render/effects.js` compatibility facade used by
+> `core/engine.js` and `core/round.js`. The facade keeps the Canvas-specific
+> buffers inside `render/`; it does not change the inherited runtime cycle.
 
 The side effects that must fire in this relative order, and where they live:
 
@@ -388,10 +391,10 @@ changes in the entire split.
    (`core/round.js` — `RSEED = …` became `setRSEED(…)`), every read site
    (`hash1`) unchanged.
 
-2. **`getLastSubDepth()` in `render/renderer.js`.** `lastSubDepth` is written by
-   `draw()` and read once per frame by `frame()` for the HUD depth/zone
-   readout. The accessor keeps the write site renderer-private. Read once per
-   frame, not in a hot loop.
+2. **`getLastSubDepth()` in `render/renderer.js`.** `lastSubDepth` remains
+   Canvas-private for the retained reference renderer. The HUD now reads the
+   `SceneModel` readout returned by `render/index.js`, so no module outside
+   `render/` imports this accessor.
 
 ### Why `render/renderer.js` is one 460-line file
 
@@ -433,15 +436,14 @@ inside function bodies and event-listener callbacks. This was verified
 mechanically during the split.
 
 M1.3 removed the arithmetic from that tangle but not the cycles themselves: the
-adapter in `core/engine.js` still imports the renderer, audio and UI in order to
-*render* engine events. The cycles are therefore unchanged in shape and remain
+adapter in `core/engine.js` still imports presentation effects, audio and UI in
+order to render engine events. The effects arrive through `render/effects.js`,
+so the adapter does not import a concrete renderer. The cycles otherwise remain
 safe for the same reason.
 
-**M1.8 did not close them, deliberately.** The port went in beside the Canvas
-renderer rather than through it, so `core/engine.js` and `core/round.js` still
-import `FX` and `trail` from `render/renderer.js`. Those are Canvas-specific
-effect buffers; routing them through a subscriber list is a change to
-gameplay-adjacent modules that the scene port does not need in order to be
-correct, and bundling it in would have put renderer work inside the two files
-that hold the round machine and the engine adapter. It remains the natural next
-step when Canvas is retired.
+**M1.8 keeps the Canvas-backed effect buffers deliberately**, but exposes them
+to `core/engine.js` and `core/round.js` through `render/effects.js`. This
+removes the concrete-renderer leak without changing how the presentation effects
+behave or moving renderer work into the round machine or engine adapter.
+Replacing the effect implementation remains the natural next step when Canvas
+is retired.

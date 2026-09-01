@@ -132,7 +132,8 @@ malfunctions, fairness, verifiability, responsible play, back office.
 **M1.2 — toolchain and monorepo.** npm workspaces, Vite, TypeScript strict
 (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`), Vitest with an 80%
 coverage gate over `packages/*`, CI on push. `apps/client` stays `allowJs` with
-`checkJs` off because M1.8 replaces `render/` wholesale; **new code is `.ts`**.
+`checkJs` off while the Canvas reference and prototype UI remain JavaScript;
+**new code is `.ts`**.
 
 **M1.3 — pure engine.** Position math and settlement moved into
 `packages/engine` as pure TypeScript: no DOM, no timers, no clock reads, no RNG.

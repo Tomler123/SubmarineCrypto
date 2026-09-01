@@ -126,7 +126,7 @@ functions, while `@crush/sim` remains at 96.04 % lines/statements, 84.55 %
 branches and 100 % functions without excluding its populated barrel. Client
 `.ts` modules are now measured too — a reporting gap that had hidden
 `core/close-calls.ts` since Close Calls — putting `scene-model.ts` at 100 %
-lines and `pixi-scene.ts` at 83.22 % lines / 100 % functions. `apps/client`
+lines and `pixi-scene.ts` at 82.89 % lines / 100 % functions. `apps/client`
 remains ungated.
 
 ### Where things live
@@ -146,7 +146,7 @@ apps/client/src/
   core/                 engine adapter, Close Call projector, gateway, entry-window, round, engine-backed bots
   audio/audio.js        Au synth + pointerdown unlock
   render/               the renderer seam: port.ts, scene-model.ts (pure projection),
-                        pixi-scene.ts, canvas-port.js, index.js (selection), boot.js,
+                        pixi-scene.ts, canvas-port.js, effects.js, index.js (selection), boot.js,
                         palette, renderer.js (Canvas 2D reference — unmodified)
   ui/                   dom-refs, feed, history, overlay, console, sheets, responsible
   loop/frame.js         60 fps main loop
@@ -158,12 +158,13 @@ Run it with `npm install` then `npm run dev` (Vite, http://localhost:5173). ES m
 
 - **Nothing outside `src/feed/` may know which `IndexSource` is running.** Import the `source` singleton from `feed/index.js`, never `SimulatedIndexSource` directly.
 - **`InterpBuffer` stays out of `render/`.** Ticks are authoritative; the interpolated value is presentation. Keeping them in separate modules makes invariant 3 structurally visible.
-- **A renderer reads the `SceneModel` and nothing else.** No `S`, no engine, no
-  `buffer`, no DOM, no clock inside a renderer — the projection in
-  `render/scene-model.ts` is the only place client state is read, and
-  `render(model): void` has no return channel, so a scene cannot feed a
+- **The Pixi scene reads the `SceneModel` and nothing else.** No `S`, no engine,
+  no `buffer`, no DOM, no clock inside `pixi-scene.ts` — the projection in
+  `render/scene-model.ts` is the only place the Pixi path reads client state,
+  and `render(model): void` has no return channel, so a scene cannot feed a
   gameplay decision. Authority facts (`crushIndex`, `livePnlCents`) pass through
-  from `@crush/engine`; never recompute either in `render/`.
+  from `@crush/engine`; never recompute either in `render/`. The unmodified
+  Canvas reference remains a documented temporary exception until parity review.
 - **Renderer selection lives only in `render/index.js`.** Nothing outside
   `render/` may name a concrete implementation or import `pixi.js`, exactly as
   nothing outside `feed/` may name a concrete source. Canvas stays the default

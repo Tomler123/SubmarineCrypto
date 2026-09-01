@@ -7,19 +7,15 @@ import { overlayHTML } from '../ui/overlay.js';
 import { syncConsole } from '../ui/console.js';
 import { Engine } from '../core/engine.js';
 import { roundUpdate } from '../core/round.js';
-import { getLastSubDepth } from '../render/renderer.js';
 import { renderFrame } from '../render/index.js';
-import { zoneName } from '../render/palette.js';
 
 /* ================================================================
    MAIN LOOP
 
    M1.8: the frame no longer calls a concrete renderer. It asks the render
    seam to draw, and the seam decides which RendererPort is live (SC-1). The
-   HUD readout below still reads `getLastSubDepth()` from the Canvas renderer
-   because that renderer remains the default and owns the value; when Canvas
-   is retired after visual-parity review, the readout reads the projected
-   `SceneModel` instead and this import goes with it.
+   The HUD reads the same projected SceneModel readout returned by the seam,
+   so it does not know which implementation produced the frame.
 ================================================================ */
 let lastT=now();
 export function frame(){
@@ -33,11 +29,11 @@ export function frame(){
   el.idxVal.textContent=v.toFixed(1);
   el.idxVal.style.color = S.pos&&S.pos.state!=='done'
     ? (Engine.pnl(v)>=0?'#4CF2C0':'#FF4B33') : '#EAF4F1';
-  const subD=getLastSubDepth();
-  el.idxSub.textContent = subD<=0
+  const subD=out.depth;
+  el.idxSub.textContent = out.breached
     ? 'SURFACED \u00B7 IDX'
     : 'DEPTH '+Math.round(subD)+'M \u00B7 IDX';
-  el.zone.textContent = subD<=0 ? 'BREACH' : zoneName(subD);
+  el.zone.textContent = out.zone;
   el.bal.textContent=fmt$(S.balance);
 
   if (S.phase==='running') el.rTimer.textContent=Math.max(0,(S.roundEnd-t)/1000).toFixed(0)+'s';

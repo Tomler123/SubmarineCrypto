@@ -3,7 +3,7 @@ import { S } from '../state/store.js';
 import { now } from '../util/math.js';
 import { setRSEED } from '../util/random.js';
 import { source, buffer } from '../feed/index.js';
-import { trail, FX } from '../render/renderer.js';
+import { trail, FX } from '../render/effects.js';
 import { Au } from '../audio/audio.js';
 import { Engine } from './engine.js';
 import { Gateway } from './gateway.js';

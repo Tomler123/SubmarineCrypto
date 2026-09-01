@@ -5,7 +5,7 @@ import { Engine } from '../core/engine.js';
 import { createPixiRenderer } from './pixi-scene.ts';
 import { createCanvasRenderer } from './canvas-port.js';
 import { DEFAULT_VIEWPORT, projectScene } from './scene-model.ts';
-import { trail } from './renderer.js';
+import { trail } from './effects.js';
 
 /* ================================================================
    RENDERER SEAM — the only place that knows which renderer is running.
@@ -102,7 +102,13 @@ function currentSceneModel(t, dt){
 export function renderFrame(t, dt){
   const model = currentSceneModel(t, dt);
   renderer.render(model);
-  return { v: model.readout.index, tension: model.tension };
+  return {
+    v: model.readout.index,
+    tension: model.tension,
+    depth: model.readout.depth,
+    breached: model.readout.breached,
+    zone: model.readout.zone,
+  };
 }
 
 /** Measure the scene host and hand the dimensions to the port (SC-6). */
