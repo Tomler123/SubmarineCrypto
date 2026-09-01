@@ -13,10 +13,62 @@
 .levOpt:last-child{border-right:0}
 .levOpt.sel{background:rgba(255,180,84,.14);color:var(--sodium);opacity:1;font-weight:600}
 #mathBtn{font-family:var(--mono);font-size:11px;color:var(--sodium);opacity:.6;border:1px solid var(--line);border-radius:7px;width:26px;height:26px;flex:0 0 auto}
-.autoOrders label{display:flex;align-items:center;gap:6px;flex:1;font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--foam);opacity:.8}
-.autoOrders input{width:100%;min-width:0;padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:rgba(234,244,241,.04);color:var(--foam);font-family:var(--mono);font-size:12px}
-.autoOrders input::placeholder{color:var(--foam);opacity:.35}
-.autoOrders input:focus{outline:1px solid rgba(255,180,84,.55);border-color:rgba(255,180,84,.45)}
+/* ---- AUTO orders (TP/SL) --------------------------------------------
+   Amber-instrument idiom, same as the stake stepper: the row is a switch
+   plus two clamped numeric fields. The switch is the single source of
+   truth for whether TP/SL are sent at all — off means `undefined` reaches
+   the Gateway, not a zero. Bounds are mirrored from the engine's EN-4/AO-3
+   rule (see ui/auto-orders.js); the mirror only clamps the *stepper*, it
+   never rejects, so it can't be stricter than the authority (ADR 0002). */
+.autoOrders{gap:10px}
+.autoFields{display:flex;gap:8px;flex:1;min-width:0}
+.autoField{display:flex;align-items:center;gap:4px;flex:1;min-width:0;
+  border:1px solid var(--line);border-radius:9px;padding:3px 4px 3px 7px;
+  background:rgba(255,180,84,.04);transition:border-color .15s,background .15s,opacity .15s}
+.autoTag{font-family:var(--mono);font-size:9px;letter-spacing:.16em;color:var(--sodium);
+  opacity:.75;flex:0 0 auto}
+.autoOrders input{width:100%;min-width:0;padding:5px 2px;border:0;background:none;
+  color:var(--foam);font-family:var(--mono);font-size:13px;font-weight:600;text-align:center;
+  font-variant-numeric:tabular-nums;-moz-appearance:textfield}
+.autoOrders input::-webkit-outer-spin-button,
+.autoOrders input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.autoOrders input::placeholder{color:var(--foam);opacity:.3;font-weight:400;letter-spacing:.1em}
+.autoOrders input:focus{outline:0}
+.autoField:focus-within{border-color:rgba(255,180,84,.5);background:rgba(255,180,84,.09)}
+
+/* The mini stepper: same amber affordance as `.stepBtn`, sized for a field. */
+.stepBtn.mini{width:26px;height:26px;border-radius:7px;font-size:15px;line-height:1;
+  display:flex;align-items:center;justify-content:center;flex:0 0 auto;
+  border-color:rgba(255,180,84,.18);transition:opacity .15s,background .15s}
+.stepBtn.mini:disabled{opacity:.22;pointer-events:none}
+
+/* ---- the AUTO switch ---- */
+.switch{flex:0 0 auto;padding:4px 0;display:flex;align-items:center}
+.switchTrack{position:relative;display:block;width:38px;height:21px;border-radius:11px;
+  border:1px solid var(--line);background:rgba(4,9,14,.6);
+  transition:background .18s,border-color .18s,box-shadow .18s}
+.switchKnob{position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;
+  background:var(--foam);opacity:.4;transition:transform .18s cubic-bezier(.4,1.4,.5,1),background .18s,opacity .18s}
+.switch[aria-checked="true"] .switchTrack{background:rgba(255,180,84,.22);
+  border-color:rgba(255,180,84,.55);box-shadow:0 0 12px rgba(255,180,84,.22)}
+.switch[aria-checked="true"] .switchKnob{transform:translateX(17px);background:var(--sodium);opacity:1}
+.switch:focus-visible .switchTrack{outline:2px solid rgba(255,180,84,.6);outline-offset:2px}
+
+/* Off state: the fields stay visible (so the player can see what AUTO would
+   control) but read as inert — dimmed, unfocusable, and not submitted. */
+.autoOrders.off .autoFields{opacity:.32;pointer-events:none}
+.autoOrders.off .autoField{border-style:dashed}
+
+/* Out-of-range typing is flagged, never silently corrected while the caret is
+   in the field — the value is clamped on blur instead. */
+.autoField.bad{border-color:rgba(255,75,51,.6);background:rgba(255,75,51,.08)}
+.autoField.bad .autoTag{color:var(--klaxon);opacity:1}
+
+#autoHint{font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--sodium);
+  opacity:.65;min-height:13px;margin:-4px 0 8px 60px}
+#autoHint:empty{min-height:0;margin-bottom:4px}
+#autoHint.bad{color:var(--klaxon);opacity:.9}
+@media (prefers-reduced-motion:reduce){.switchKnob{transition:none}}
 .actions{display:flex;gap:9px;margin-bottom:0}
 .dirBtn{flex:1;height:62px;border-radius:13px;font-family:var(--disp);font-size:16px;letter-spacing:.05em;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;transition:transform .06s,filter .15s}
 .dirBtn small{font-family:var(--mono);font-size:9px;letter-spacing:.14em;opacity:.75;font-weight:400}

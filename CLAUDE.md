@@ -148,7 +148,8 @@ apps/client/src/
   render/               the renderer seam: port.ts, scene-model.ts (pure projection),
                         pixi-scene.ts, canvas-port.js, effects.js, index.js (selection), boot.js,
                         palette, renderer.js (Canvas 2D reference — unmodified)
-  ui/                   dom-refs, feed, history, overlay, console, sheets, responsible
+  ui/                   dom-refs, feed, history, overlay, console, sheets, responsible,
+                        auto-orders.ts (AUTO switch + clamped TP/SL steppers)
   loop/frame.js         60 fps main loop
 ```
 
@@ -185,6 +186,15 @@ Run it with `npm install` then `npm run dev` (Vite, http://localhost:5173). ES m
 - **The crush line has exactly one implementation.** `positionCrushIndex` is what
   the engine tests against *and* what the renderer draws; never recompute it
   client-side. `CR-6` makes a one-tick drift between the two a release blocker.
+- **The AUTO row's bounds are a stepper mirror, not a gate.** `ui/auto-orders.ts`
+  restates AO-3's leverage-dependent take-profit floor and the stop-loss
+  interval so the − / + buttons and the on-blur clamp cannot offer a value the
+  engine refuses. It must never reject a submission: `tryOpen` still sends the
+  field's contents and lets the engine answer, because the mirror may not be
+  stricter than the authority (ADR 0002). The engine bounds are *exclusive*, so
+  the usable grid sits one 0.01 step inside each. The switch is the single
+  source of truth for whether TP/SL are attached at all — off sends
+  `undefined`, never a stale field value.
 - **Close Calls are authority facts, not client classifications.** The engine
   observes signed headroom from its own `positionCrushIndex` on surviving ticks,
   including the full ascent, and emits the stable-id event after settlement.

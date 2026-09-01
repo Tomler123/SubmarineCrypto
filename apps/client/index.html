@@ -67,11 +67,26 @@
         </div>
         <button id="mathBtn" aria-label="Payout math">i</button>
       </div>
-      <div class="crow autoOrders" aria-label="Auto orders">
+      <div class="crow autoOrders" id="autoRow" aria-label="Auto orders">
         <div class="eyebrow">AUTO</div>
-        <label>TP <input id="takeProfitIn" type="number" inputmode="decimal" step="0.01" placeholder="OFF" aria-label="Take-profit multiplier"></label>
-        <label>SL <input id="stopLossIn" type="number" inputmode="decimal" step="0.01" placeholder="OFF" aria-label="Stop-loss multiplier"></label>
+        <button id="autoToggle" class="switch" role="switch" aria-checked="false"
+                aria-label="Enable auto orders"><span class="switchTrack"><span class="switchKnob"></span></span></button>
+        <div class="autoFields">
+          <div class="autoField" data-field="tp">
+            <span class="autoTag">TP</span>
+            <button class="stepBtn mini" data-step="tp-down" aria-label="Lower take-profit" tabindex="-1">&minus;</button>
+            <input id="takeProfitIn" type="number" inputmode="decimal" step="0.01" placeholder="OFF" aria-label="Take-profit multiplier" disabled>
+            <button class="stepBtn mini" data-step="tp-up" aria-label="Raise take-profit" tabindex="-1">+</button>
+          </div>
+          <div class="autoField" data-field="sl">
+            <span class="autoTag">SL</span>
+            <button class="stepBtn mini" data-step="sl-down" aria-label="Lower stop-loss" tabindex="-1">&minus;</button>
+            <input id="stopLossIn" type="number" inputmode="decimal" step="0.01" placeholder="OFF" aria-label="Stop-loss multiplier" disabled>
+            <button class="stepBtn mini" data-step="sl-up" aria-label="Raise stop-loss" tabindex="-1">+</button>
+          </div>
+        </div>
       </div>
+      <div id="autoHint" aria-live="polite"></div>
       <div class="actions">
         <button class="dirBtn" id="btnSurface">SURFACE &#9650;<small>PROFIT IF INDEX RISES</small></button>
         <button class="dirBtn" id="btnDive">DIVE &#9660;<small>PROFIT IF INDEX FALLS</small></button>

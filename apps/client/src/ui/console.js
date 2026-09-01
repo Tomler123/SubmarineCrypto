@@ -7,6 +7,7 @@ import { Au } from '../audio/audio.js';
 import { Engine } from '../core/engine.js';
 import { Gateway } from '../core/gateway.js';
 import { entryOpen, entrySecondsLeft } from '../core/entry-window.js';
+import { autoEnabled, onLeverageChange } from './auto-orders.ts';
 
 /* ================================================================
    UI SYNC + INPUT
@@ -21,11 +22,17 @@ document.querySelectorAll('.preset').forEach(b=>b.addEventListener('click',()=>{
 document.querySelectorAll('.levOpt').forEach(b=>b.addEventListener('click',()=>{
   S.lev=+b.dataset.l;
   document.querySelectorAll('.levOpt').forEach(x=>x.classList.toggle('sel',x===b));
+  // AO-3's take-profit floor scales with leverage, so a legal TP at 2x can be
+  // below the floor at 25x. Re-clamp here rather than let the engine reject.
+  onLeverageChange();
   Au.click();
 }));
 export function flashMsg(m){ el.msg.textContent=m;
   clearTimeout(flashMsg._t); flashMsg._t=setTimeout(()=>el.msg.textContent='',2200); }
 function optionalMultiplier(input){
+  // The AUTO switch is the single source of truth for whether an auto-order is
+  // attached at all: off sends `undefined`, never a stale field value.
+  if (!autoEnabled()) return undefined;
   const raw=input.value.trim();
   return raw==='' ? undefined : Number(raw);
 }

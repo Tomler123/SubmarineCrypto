@@ -31,8 +31,26 @@ const IDS = [
 
 export function installDom(){
   document.body.innerHTML = IDS.map(id => `<div id="${id}"></div>`).join('')
-    + '<input id="takeProfitIn" type="number">'
-    + '<input id="stopLossIn" type="number">'
+    // The AUTO row is a real fragment rather than bare inputs: `ui/auto-orders.ts`
+    // resolves the switch, the field wrappers and each stepper at module load
+    // and throws on a missing node, so the structure is part of the contract
+    // these tests load against.
+    + '<div class="crow autoOrders" id="autoRow">'
+    +   '<button id="autoToggle" role="switch" aria-checked="false"></button>'
+    +   '<div class="autoFields">'
+    +     '<div class="autoField" data-field="tp">'
+    +       '<button data-step="tp-down"></button>'
+    +       '<input id="takeProfitIn" type="number">'
+    +       '<button data-step="tp-up"></button>'
+    +     '</div>'
+    +     '<div class="autoField" data-field="sl">'
+    +       '<button data-step="sl-down"></button>'
+    +       '<input id="stopLossIn" type="number">'
+    +       '<button data-step="sl-up"></button>'
+    +     '</div>'
+    +   '</div>'
+    + '</div>'
+    + '<div id="autoHint"></div>'
     // M1.8: the renderer seam imports the Canvas renderer, which resolves
     // #sceneWrap and #scene at module load exactly as the UI modules resolve
     // theirs. Tests that import the seam need both to exist first.

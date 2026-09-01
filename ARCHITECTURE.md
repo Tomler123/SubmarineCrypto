@@ -308,17 +308,18 @@ dependencies before dependents) plus the explicit import order in `main.js`.
 Actual evaluation order:
 
 ```
- 1. config/constants.js          12. render/renderer.js      23. core/bots.js
- 2. util/math.js                 13. ui/dom-refs.js          24. ui/history.js
- 3. state/store.js               14. ui/feed.js              25. core/round.js
- 4. util/random.js               15. ui/overlay.js           26. render/scene-model.ts
- 5. feed/SimulatedIndexSource.js 16. core/entry-window.js    27. render/port.ts
- 6. feed/InterpBuffer.js         17. core/gateway.js         28. render/pixi-scene.ts
- 7. feed/index.js                18. ui/console.js           29. render/canvas-port.js
- 8. util/format.js               19. ui/sheets.js            30. render/index.js
- 9. util/dom.js                  20. ui/responsible.js       31. render/boot.js
-10. audio/audio.js               21. core/close-calls.ts     32. loop/frame.js
-11. render/palette.js            22. core/engine.js          33. main.js
+ 1. config/constants.js          12. render/renderer.js      23. core/engine.js
+ 2. util/math.js                 13. ui/dom-refs.js          24. core/bots.js
+ 3. state/store.js               14. ui/feed.js              25. ui/history.js
+ 4. util/random.js               15. ui/overlay.js           26. core/round.js
+ 5. feed/SimulatedIndexSource.js 16. core/entry-window.js    27. render/scene-model.ts
+ 6. feed/InterpBuffer.js         17. core/gateway.js         28. render/port.ts
+ 7. feed/index.js                18. ui/auto-orders.ts       29. render/pixi-scene.ts
+ 8. util/format.js               19. ui/console.js           30. render/canvas-port.js
+ 9. util/dom.js                  20. ui/sheets.js            31. render/index.js
+10. audio/audio.js               21. ui/responsible.js       32. render/boot.js
+11. render/palette.js            22. core/close-calls.ts     33. loop/frame.js
+                                                             34. main.js
 ```
 
 > **M1.4 note.** `core/entry-window.js` was inserted at step 16, ahead of
@@ -349,6 +350,13 @@ Actual evaluation order:
 > `core/engine.js` and `core/round.js`. The facade keeps the Canvas-specific
 > buffers inside `render/`; it does not change the inherited runtime cycle.
 
+> **AUTO orders note.** `ui/auto-orders.ts` evaluates at step 18, immediately
+> before `ui/console.js`, which imports it for the `autoEnabled()` gate and the
+> leverage re-clamp. It registers its own listeners (the AUTO switch, the TP/SL
+> steppers, and each field's input/blur handlers) and calls
+> `setAutoEnabled(false)` at module scope to put the row into its off state, so
+> it is a new row in the table below. Later steps shift by one.
+
 The side effects that must fire in this relative order, and where they live:
 
 | # | Side effect | Module | Eval step |
@@ -356,16 +364,17 @@ The side effects that must fire in this relative order, and where they live:
 | 1 | `new SimulatedIndexSource()` starts the 125 ms feed timer | `feed/index.js` | 7 |
 | 2 | `document.addEventListener('pointerdown', …)` audio unlock | `audio/audio.js` | 10 |
 | 3 | `window.addEventListener('resize', resize)` | `render/renderer.js` | 12 |
-| 3b | `createRenderer()` builds the selected `RendererPort` | `render/index.js` | 30 |
-| 3c | `window.addEventListener('resize', …)` scene sizing | `render/boot.js` | 31 |
+| 3b | `createRenderer()` builds the selected `RendererPort` | `render/index.js` | 31 |
+| 3c | `window.addEventListener('resize', …)` scene sizing | `render/boot.js` | 32 |
 | 4 | DOM node caching (`$('#…')` lookups) | `ui/dom-refs.js` | 13 |
-| 5 | Console listeners (stake, presets, leverage, dir, cash-out) | `ui/console.js` | 18 |
-| 6 | Sheet + scrim listeners | `ui/sheets.js` | 19 |
-| 7 | Limits / reality-check / sound listeners, 1 s session `setInterval` | `ui/responsible.js` | 20 |
-| 8 | `source.onTick(...)` tick wiring | `main.js` | 33 |
-| 9 | Boot: `bootScene()`, `setStake()`, `resetPhase('waiting')`, `rAF(frame)` | `main.js` | 33 |
+| 4b | AUTO switch + TP/SL stepper listeners, `setAutoEnabled(false)` | `ui/auto-orders.ts` | 18 |
+| 5 | Console listeners (stake, presets, leverage, dir, cash-out) | `ui/console.js` | 19 |
+| 6 | Sheet + scrim listeners | `ui/sheets.js` | 20 |
+| 7 | Limits / reality-check / sound listeners, 1 s session `setInterval` | `ui/responsible.js` | 21 |
+| 8 | `source.onTick(...)` tick wiring | `main.js` | 34 |
+| 9 | Boot: `bootScene()`, `setStake()`, `resetPhase('waiting')`, `rAF(frame)` | `main.js` | 34 |
 
-**Why the feed timer starting (step 7) before the tick subscription (step 27)
+**Why the feed timer starting (step 7) before the tick subscription (step 34)
 is safe:** `SimulatedIndexSource`'s constructor sets `this.live = false`, and
 `_tick()` is gated on `if (this.live)`. The timer emits nothing until
 `resetRound()` is called from `setPhase('running')` — roughly 9.4 s after boot
