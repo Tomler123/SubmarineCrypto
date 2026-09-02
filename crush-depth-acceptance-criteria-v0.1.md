@@ -64,6 +64,26 @@ Conventions: "tick" = one 125 ms server sample. "MUST" = release blocker. All mo
   The violent fixture MUST exercise a meaningful adverse path such as crush
   precedence or exposure during the 500 ms ascent. Changing scheduler pacing
   MUST NOT change the artifact.
+- **FI-16** Client replay is opt-in and presentation-clock adaptation is
+  explicit. With no `feed` query the simulator remains selected. Under
+  `?feed=replay`, `fixture=flash-crash` and `fixture=calm` resolve to the
+  documented playable fixtures; an omitted or unknown fixture uses
+  `flash-crash`. Every selectable playable fixture spans at least 90,000 ms
+  from first to last recorded row. The first replay tick anchors a
+  presentation-only copy to the current page clock. Later copies advance on
+  the configured 125 ms playback cadence, independent of the selected rows'
+  irregular 100/200 ms recorded timestamp gaps. If a sparse fixture leaves the
+  renderer beyond its 150 ms interpolation horizon, the adapter inserts a
+  presentation-only hold sample at that horizon and eases to the newly arrived
+  value over one playback interval; it MUST NOT retroactively jump through the
+  unseen gap. Reset re-anchors. Source subscribers, engine, entry, liquidation,
+  auto-orders and settlement retain the unchanged original timestamp and index
+  value; a hold sample never leaves the interpolation buffer. Scheduler jitter,
+  frame cadence, interpolation reads and the epoch-to-page offset cannot alter
+  any engine event, balance or settlement artifact. Test both clock domains,
+  irregular selected-row gaps, sparse-gap recovery, both fixture selections,
+  the default selection and an identical settlement with zero vs. many
+  presentation reads.
 
 ## RL — Round Lifecycle
 

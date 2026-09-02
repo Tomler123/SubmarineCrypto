@@ -29,6 +29,41 @@ describe('FI-13 — client source selection stays inside the feed seam', () => {
     expect(createIndexSource('?feed=replay')).toBeInstanceOf(ReplayIndexSource);
   });
 
+  it.each([
+    ['flash-crash', 1_621_430_420_000],
+    ['calm', 1_621_382_400_000],
+  ])('resolves fixture=%s to its recorded BTC interval', async (fixture, openingTimestamp) => {
+    const { createIndexSource } = await import('../src/feed/index.js');
+    const replay = createIndexSource(`?feed=replay&fixture=${fixture}`);
+    const ticks = [];
+    replay.onTick((tick) => ticks.push(tick));
+
+    replay.resetRound();
+    vi.advanceTimersByTime(90_125);
+
+    expect(ticks[0].t).toBe(openingTimestamp);
+    expect(ticks.at(-1).t - ticks[0].t).toBeGreaterThanOrEqual(90_000);
+  });
+
+  it('uses flash-crash as the documented fallback for an omitted or unknown fixture', async () => {
+    const { selectReplayFixtureName } = await import('../src/feed/index.js');
+    expect(selectReplayFixtureName('?feed=replay')).toBe('flash-crash');
+    expect(selectReplayFixtureName('?feed=replay&fixture=unknown')).toBe('flash-crash');
+  });
+
+  it('enables epoch-to-page timestamp mapping only for the replay selection', async () => {
+    const { createPresentationBuffer } = await import('../src/feed/index.js');
+    const epochTick = { t: 1_621_430_420_000, v: 1_000, ret: 0 };
+    const replayBuffer = createPresentationBuffer('?feed=replay&fixture=calm', () => 4_000);
+    const simulatedBuffer = createPresentationBuffer('', () => 4_000);
+
+    replayBuffer.push(epochTick);
+    simulatedBuffer.push(epochTick);
+
+    expect(replayBuffer.a[0].t).toBe(4_000);
+    expect(simulatedBuffer.a[0]).toBe(epochTick);
+  });
+
   it('does not leak a concrete replay source name outside feed modules', () => {
     for (const file of sourceFiles(CLIENT_SRC)){
       if (file.startsWith(resolve(process.cwd(), 'apps/client/src/feed'))) continue;

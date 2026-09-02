@@ -114,6 +114,26 @@ describe('FI-11 — published index transform', () => {
       initialSigmaSquared: 0.00012 ** 2,
     });
   });
+
+  it('fits relative BTC movement onto I0=1000 independently of the absolute BTC price', () => {
+    const replay = (prices: readonly number[]): readonly number[] => {
+      const scheduler = new ManualScheduler();
+      const source = new ReplayIndexSource(
+        prices.map((price, index) => ({ t: index * 100, price })),
+        { scheduler },
+      );
+      const ticks = collect(source);
+      source.resetRound();
+      scheduler.advance(prices.length);
+      return ticks.map((tick) => tick.v);
+    };
+
+    const atFortyThousand = replay([40_000, 40_020, 39_980, 40_040]);
+    const atEightyThousand = replay([80_000, 80_040, 79_960, 80_080]);
+
+    expect(atFortyThousand[0]).toBe(1_000);
+    expect(atEightyThousand).toEqual(atFortyThousand);
+  });
 });
 
 describe('FI-9 — fixture validation', () => {

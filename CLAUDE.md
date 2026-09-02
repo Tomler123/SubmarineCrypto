@@ -74,11 +74,21 @@ branch coverage.
 
 M1.6 is complete: `@crush/feed` owns the shared TypeScript feed base, published
 index transform, simulator, interpolation buffer, replay source and fixture
-parser. Two compact Binance BTCUSDT fixtures are committed with provenance;
-the client still defaults to the simulator and opts into replay only through
-`feed/index.js` (`?feed=replay`). The approved 100 ms → 125 ms policy and the
-explicit `sigma_floor²` transform initial state are acceptance criteria FI-10
-and FI-11, with the decision recorded in ADR 0006.
+parser. Three compact Binance BTCUSDT fixtures are committed with provenance;
+the original 29.9 s calm control remains checksum-locked calibration input,
+while the flash-crash and added calm-playable fixtures are the two full-round
+client selections. The client still defaults to the simulator and opts into
+replay only through
+`feed/index.js`: `?feed=replay&fixture=flash-crash` and
+`?feed=replay&fixture=calm` select the two 99.9 s playable intervals, with
+flash-crash as the replay fallback. Replay's epoch timestamps remain unchanged
+for tick/engine consumers; `presentation-interp-buffer.ts` paces only
+interpolation copies on the page clock at 125 ms and smooths recovery after a
+sparse fixture gap, so Canvas, Pixi and HUD do not alternate velocity or jump.
+The approved 100 ms → 125 ms policy and the explicit
+`sigma_floor²` transform initial state are acceptance criteria FI-10 and FI-11,
+with the presentation boundary specified by FI-16 and the replay decision
+recorded in ADR 0006.
 
 M1.7 is complete. `@crush/sim` runs the real engine against seeded simulator
 rounds and the unchanged M1.6 replay mapping, models the four MC-3 player
@@ -120,7 +130,7 @@ acts on, and adding them later touches `pixi-scene.ts` only. **PF-1's 60 fps on
 a mid-range phone is not demonstrated** — it needs a real device and a real
 WebGL context, so that exit criterion stands open. See SC-1…SC-8 and ADR 0009.
 
-583 tests pass with 4 skipped across 48 files. Package coverage gates remain
+628 tests pass with 4 skipped across 50 files. Package coverage gates remain
 green; the Close Call engine module is at 100 % lines/statements, branches and
 functions, while `@crush/sim` remains at 96.04 % lines/statements, 84.55 %
 branches and 100 % functions without excluding its populated barrel. Client
@@ -142,7 +152,7 @@ apps/client/src/
   config/constants.js   CFG — every tunable and magic number
   util/                 dom ($), math (clamp/lerp/now/wait), random (LCG/gauss/noise/RSEED), format (fmt$/fmtClock)
   state/store.js        S — mutable game state singleton
-  feed/                 SimulatedIndexSource, InterpBuffer, and the source/buffer singletons
+  feed/                 source/fixture selection, InterpBuffer, and the replay presentation-clock adapter
   core/                 engine adapter, Close Call projector, gateway, entry-window, round, engine-backed bots
   audio/audio.js        Au synth + pointerdown unlock
   render/               the renderer seam: port.ts, scene-model.ts (pure projection),
@@ -158,7 +168,7 @@ Run it with `npm install` then `npm run dev` (Vite, http://localhost:5173). ES m
 ### Structural rules for this tree
 
 - **Nothing outside `src/feed/` may know which `IndexSource` is running.** Import the `source` singleton from `feed/index.js`, never `SimulatedIndexSource` directly.
-- **`InterpBuffer` stays out of `render/`.** Ticks are authoritative; the interpolated value is presentation. Keeping them in separate modules makes invariant 3 structurally visible.
+- **`InterpBuffer` stays out of `render/`.** Ticks are authoritative; the interpolated value is presentation. Replay epoch timestamps are copied and paced at 125 ms on the page clock only as they enter the presentation buffer; sparse-gap hold copies also stay inside that buffer. The source tick passed to the engine remains untouched. Keeping these operations inside `feed/` makes invariant 3 structurally visible.
 - **The Pixi scene reads the `SceneModel` and nothing else.** No `S`, no engine,
   no `buffer`, no DOM, no clock inside `pixi-scene.ts` — the projection in
   `render/scene-model.ts` is the only place the Pixi path reads client state,

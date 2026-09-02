@@ -311,4 +311,10 @@ Position it as "the first market-driven crash game," not "the first crypto price
 3. ~~Auto cash-out / stop-loss inputs (collapsed row under leverage), runtime
    validation, cooldown and max-win auto-surface.~~ **Done (M1.5).**
 4. ~~Close Calls in the fake feed.~~ **Done** — authoritative minimum-headroom facts, inclusive 50 bp threshold, ascent exposure, stable-id duplicate suppression, and engine-backed fake actors (CC-1…CC-8, ADR 0008).
-5. **Done in M1.6:** the feed seam gains a deterministic replay mode fed by documented recorded real BTC 100 ms data (best possible pre-phase-2 test harness).
+5. **Done in M1.6:** the feed seam gains a deterministic replay mode fed by
+   documented recorded real BTC 100 ms data (best possible pre-phase-2 test
+   harness). The client keeps simulated play as the default and exposes the
+   two full-round fixtures as `?feed=replay&fixture=flash-crash` and
+   `?feed=replay&fixture=calm`. Original fixture timestamps remain authoritative;
+   a client-only offset maps interpolation copies onto the page-relative render
+   clock and cannot reach entry, liquidation, auto-orders or settlement (FI-16).

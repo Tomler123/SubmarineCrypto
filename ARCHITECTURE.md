@@ -38,7 +38,9 @@ apps/client/src/
     monotonic.js        IndexSourceBase — subscribers + the FI-8 gate
     SimulatedIndexSource.js
     InterpBuffer.js
-    index.js            the `source` and `buffer` singletons
+    presentation-interp-buffer.ts
+                        client-only authoritative-time → page-time adapter
+    index.js            source/fixture selection + the `source` and `buffer` singletons
   core/                 pure-ish game logic
     engine.js           adapter over @crush/engine: state mirror + event → effect
     close-calls.ts      deterministic event formatting + stable-id feed suppression
@@ -147,8 +149,10 @@ implementation is not written against a surface nothing uses.
 In Phase 2 a `WsIndexSource` implements the same contract and replaces it in
 `feed/index.js`. **Nothing outside `feed/` may know which source is running.**
 The client feed seam keeps the simulator as the default and accepts
-`?feed=replay` as an explicit replay opt-in; no other client module imports a
-concrete source.
+`?feed=replay` as an explicit replay opt-in. `fixture=flash-crash` and
+`fixture=calm` select the two playable recorded intervals; an omitted or
+unrecognised replay fixture falls back to `flash-crash`. No other client module
+imports a concrete source or resolves a fixture name.
 
 **Every source extends `IndexSourceBase` (`packages/feed/src/index-source-base.ts`)**, which owns the
 subscriber list and the single emit path, `_publish`. That path is the FI-8
@@ -180,6 +184,20 @@ The interpolation buffer is deliberately **not** inside `render/`. Ticks are
 authoritative for money; the interpolated 60 fps value is presentation only.
 Keeping these in separate modules makes the rule structurally visible: the
 renderer calls `buffer.valueAt(rt)` and cannot reach tick state any other way.
+
+Replay adds a second clock domain at this boundary: source ticks carry original
+Unix epoch milliseconds (FI-10/FI-13), while frame timestamps come from
+`performance.now()`. `presentation-interp-buffer.ts` anchors the first replay
+tick to the current page time, then paces presentation copies at the same
+125 ms interval that delivers replay boundaries. This prevents FI-10's
+irregular 100/200 ms source timestamps from turning a steady playback timer
+into alternating visual velocities. If a sparse fixture stalls beyond the
+150 ms render horizon, the adapter adds a previous-value hold copy at the
+current horizon and eases to the newly known value over one tick instead of
+retroactively jumping across the gap. Both are presentation-only copies. The
+original object still flows unchanged to the engine and bot consumers, and
+`reset()` clears the page timeline so each round re-anchors. This is FI-16's
+presentation-only adapter and does not change deterministic replay output.
 
 ### 3. `core/gateway.js` — the request/ack seam
 

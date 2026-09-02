@@ -49,14 +49,31 @@ the frozen operation order; see FI-11 and ADR 0006.
 
 | File | UTC interval | Rows | Empty 100 ms buckets | SHA-256 | Evidence |
 |---|---:|---:|---:|---|---|
-| `btcusdt-binance-2021-05-19-flash-crash-100ms.csv` | 2021-05-19 13:20:20–13:22:00 | 1,000 | 0 | `1d9ea391c64557a7709af978a606b08f60c61be160dbbf8d891415f9858fd194` | $35,675.06 → $33,141.61; bucket high $35,888.00, low $33,000.00 (8.05% adverse move in 76.7 s) |
-| `btcusdt-binance-2021-05-19-calm-100ms.csv` | 2021-05-19 00:00:00–00:00:30 | 245 | 55 | `59463c347c2a1d5532eb234475b5cd5125e7b51357b8669e67a030f6eae6aefb` | sparse/gapped control interval; no missing bucket is filled |
+| `btcusdt-binance-2021-05-19-flash-crash-100ms.csv` | [2021-05-19 13:20:20.000, 13:22:00.000) | 1,000 | 0 | `1d9ea391c64557a7709af978a606b08f60c61be160dbbf8d891415f9858fd194` | 99.9 s first-to-last; $35,675.06 → $33,141.61; bucket high $35,888.00, low $33,000.00 (8.05% adverse move in 76.7 s) |
+| `btcusdt-binance-2021-05-19-calm-100ms.csv` | [2021-05-19 00:00:00.000, 00:00:30.000) | 245 | 55 | `59463c347c2a1d5532eb234475b5cd5125e7b51357b8669e67a030f6eae6aefb` | 29.9 s first-to-last; original sparse M1.6 calibration control; no missing bucket is filled |
+| `btcusdt-binance-2021-05-19-calm-playable-100ms.csv` | [2021-05-19 00:00:00.000, 00:01:40.000) | 868 | 132 | `c1280e60127ff47fd6f6bbd3e521e54653b9a02b140298e2c1d50fc4d85431a6` | 99.9 s first-to-last; $42,853.52 → $42,700.51; bucket high $43,115.45, low $42,585.53; no missing bucket is filled |
 
 The flash interval is a documented violent real-market segment, selected from
 the same primary archive because it contains a rapid multi-thousand-dollar BTC
 move. The fixture itself is the auditable evidence used by the replay tests.
+The calm-playable fixture extends the original control's source interval to
+100 s using the same derivation, official archive and UTC start. The original
+30 s file remains unchanged because it is checksum-locked into the M1.7
+engineering calibration artifact; it is not offered as a playable client
+replay. Both client selections cover the fixed 90 s round without looping or
+padding.
 
-To reproduce either file after downloading the source archive:
+Playable client URLs are:
+
+```text
+?feed=replay&fixture=flash-crash
+?feed=replay&fixture=calm
+```
+
+Replay without `fixture`, or with an unrecognised fixture name, uses
+`flash-crash`. The normal client default remains the simulator.
+
+To reproduce any file after downloading the source archive:
 
 ```text
 node packages/feed/scripts/derive-binance-aggtrades-fixture.mjs \
