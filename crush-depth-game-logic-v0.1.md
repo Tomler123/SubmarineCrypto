@@ -2,6 +2,8 @@
 
 Working title: **Crush Depth**. Status: recommendation draft for sign-off. Everything here is implementable against the Phase 1 client's existing seams (`IndexSource`, `Gateway`, tick-authoritative settlement, integer-cent ledger).
 
+**Commercial model (ADR 0011): Crush Depth is a B2B game provider**, integrated into licensed casino operators. The **operator** owns player registration, KYC/AML, deposits, withdrawals, **player balance authority**, geofencing and the primary responsible-gambling account controls. The **provider** owns the index, the round, the engine, settlement determination, its own internal double-entry game ledger, and the game-level risk controls — and **never custodies player funds**. Integration is **seamless wallet**: the operator holds the balance and the provider calls idempotent debit / credit / refund / rollback per transaction (§7, `WL-1`…`WL-8`). Every payout rule below is unchanged by this; what changes is who holds the money and who is authoritative on whether a player may play.
+
 ---
 
 ## 1. The underlying asset
@@ -12,10 +14,13 @@ Working title: **Crush Depth**. Status: recommendation draft for sign-off. Every
 - Universally recognized. "The sub is Bitcoin" is a one-line pitch.
 - 24/7 market — no market-hours dead zones.
 
-**Price source (phase 2, but the logic is fixed now):** the *median mid-price* of BTC/USDT across 5 exchanges (Binance, Coinbase, OKX, Bybit, Kraken), sampled server-side every 125 ms.
+**Price source — `VENUE_SET_V1` (ratified; see ADR 0010):** the *median mid-price* of BTC/USDT across 5 exchanges — **Binance, Coinbase Exchange, OKX, Bybit, Kraken** — sampled server-side every 125 ms, reading only each venue's **spot best-bid/ask midpoint**. No derivatives, index products, aggregator feeds or cross-quoted pairs. The venue set is versioned: any change is a new `VENUE_SET_Vn` under the VR-3 public constants version, and every settled round records the version in force (FI-17).
 
-- A feed deviating more than 0.5% from the median is excluded for that tick.
-- At least 3 live feeds are required; below that, the round aborts (see §8).
+- A feed deviating more than 0.5% from the median is excluded for that tick. Order: median over live venues → exclude outliers → re-derive from survivors (FI-4).
+- **At least 3 *post-filter survivors* are required**; below that a valid composite tick cannot be formed and the round aborts (see §8). The floor is on survivors, not on connected venues.
+- **A venue is "live" only under all five conditions of FI-18** — instrument online, subscription acknowledged, sequence/checksum continuous, BBO valid non-crossed and positive, and a *real market-data update* within 2,000 ms on the server monotonic clock. **Transport heartbeats do not refresh liveness**: a healthy socket carrying a frozen book is not a live feed, and that is precisely the case that would otherwise settle money against a stale price.
+- **A round starts only on 4 venues continuously live for 10 s**, and continues on 3 (FI-19). One venue of headroom at start costs nothing when the feed is healthy and avoids aborting — and voiding every position — on the first hiccup; once money is at risk the specified 3-survivor floor governs.
+- **Written market-data rights are a release blocker** (FI-20): commercial outcome determination, archival, certification access, and *publication of the VR-1 verification data*. A feed that may be consumed but not published cannot support "provably market-driven".
 - Median-of-5 means an attacker must move *three* major exchanges simultaneously within 125 ms to bias one tick — and §2's clamp caps what even that would achieve.
 
 Later expansion: additional "vessels" per asset (ETH — nimble, SOL — wild), same engine, different room. Not v1.
@@ -229,6 +234,8 @@ Why the delay survives every review: it deletes the entire latency-arbitrage cla
 - **Directional exposure cap:** if players' net open notional in one direction exceeds a bankroll-derived cap, new entries in that direction are rejected with "BALLAST FULL — try the other direction." Crude but sufficient for v1; dynamic pricing is v3.
 - Per-player rate limits (entries/min, requests/s), server-side.
 - All money integer minor units, double-entry ledger, idempotent operation ids on every request (the `Gateway` seam already assumes this).
+- **Wallet seam (B2B, ADR 0011).** The operator is the balance authority; the provider moves money only through **idempotent debit / credit / refund / rollback**, each keyed and replay-safe, with refund and rollback bound to the original debit. The stake debit resolves **before** the position exists, so there is never a position the player did not pay for nor a debit without a position (`EN-3`). A debit whose outcome is unknown is resolved by **rollback, never by guessing** (`WL-4`). The provider's internal ledger is for audit, dispute resolution and reconciliation against the operator (`LG-5`) — it is not custody.
+- **Eligibility is operator-supplied and provider-enforced.** Self-exclusion, cooling-off, jurisdictional blocks and operator limits arrive through the integration and are enforced server-side before entry; the provider never overrides them, and where an operator and a session restriction conflict, the stricter binds.
 
 ---
 
@@ -236,7 +243,7 @@ Why the delay survives every review: it deletes the entire latency-arbitrage cla
 
 | Event | Rule |
 |---|---|
-| Feed stale > 2 s or < 3 live exchanges | **SIGNAL LOST**: all open positions auto-surface at the last valid tick, round aborts, intermission begins. No position is ever held through blind time |
+| Cannot form a valid ≥ 3-survivor composite tick | **SIGNAL LOST**: all open positions auto-surface at the last valid tick, round aborts, intermission begins. No position is ever held through blind time. One stale or filtered venue is *excluded, not an outage* — the 2 s bound is a per-venue liveness test (FI-18), and the abort trigger is the composite failing (FI-5) |
 | Single-exchange outlier | Excluded per tick by the 0.5%-from-median filter |
 | Server crash mid-round | On recovery: any position without a settlement record is voided and refunded at stake. Never resurrect a round |
 | Tick gap 125–2000 ms (jitter) | Engine treats it as one tick; the clamp bounds the jump; client buffer hides it |

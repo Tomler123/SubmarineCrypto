@@ -6,12 +6,14 @@
 
 # --- Dependencies ---------------------------------------------------------
 node_modules/
+.pnpm-store/
 .pnp
 .pnp.*
 .yarn/cache
 .yarn/unplugged
 .yarn/build-state.yml
 .yarn/install-state.gz
+.yarn-integrity
 
 # --- Build output ---------------------------------------------------------
 # packages/*/dist (tsc outDir), apps/client/dist (vite build)
@@ -29,8 +31,10 @@ dist-types/
 .turbo/
 .eslintcache
 .stylelintcache
+.prettiercache
 .npm/
 .rollup.cache/
+.vite-inspect/
 vite.config.*.timestamp-*
 
 # --- Test / coverage output ----------------------------------------------
@@ -44,6 +48,9 @@ test-results/
 playwright-report/
 blob-report/
 .playwright/
+playwright/.auth/
+junit.xml
+vitest-results*.json
 
 # --- Secrets and local config --------------------------------------------
 # Audit note: no secret may ever be committed. Remote config (θ and friends)
@@ -51,16 +58,26 @@ blob-report/
 .env
 .env.*
 !.env.example
+.envrc
+.envrc.*
+!.envrc.example
+.npmrc.local
+.yarnrc.local.yml
+credentials.local.json
 *.pem
 *.key
 *.p12
 *.pfx
+*.jks
+*.keystore
 secrets.json
 
 # --- Local tool state -----------------------------------------------------
 .claude/settings.local.json
 .serena/
 .aider*
+.vercel/
+.netlify/
 
 # --- Logs -----------------------------------------------------------------
 *.log
@@ -69,14 +86,24 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+bun-debug.log*
 lerna-debug.log*
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+pids/
+*.pid
+*.pid.lock
+.node_repl_history
 
 # --- Editors --------------------------------------------------------------
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
 .idea/
+.vs/
+.history/
+*.code-workspace
+*.suo
+*.user
 *.swp
 *.swo
 *.sublime-workspace
@@ -91,7 +118,15 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+.directory
 $RECYCLE.BIN/
+
+# --- Temporary / backup files ---------------------------------------------
+*.tmp
+*.temp
+*.bak
+*.orig
+*~
 
 # --- Recorded feed data ---------------------------------------------------
 # ReplayIndexSource (M1.6) replays recorded BTC 100 ms files. Small committed
@@ -102,7 +137,7 @@ data/recordings/
 *.ticks.csv
 
 # --- Simulation output ----------------------------------------------------
-# packages/sim (M1.8) writes Monte-Carlo report artifacts; the calibrated
+# packages/sim (M1.7) writes Monte-Carlo report artifacts; the calibrated
 # result is recorded in the spec, not as a committed blob.
 packages/sim/out/
 packages/sim/reports/

@@ -11,8 +11,8 @@ Conventions: "tick" = one 125 ms server sample. "MUST" = release blocker. All mo
 - **FI-1** The index MUST be computed only by the published transform (λ=0.997, σ_floor=1.2 bp, clamp ±3.5σ, v=0.0042, I₀=1000). Recomputing any settled round from its raw price series reproduces every `I_t` exactly (same float ops order, or fixed-point — pick one and freeze it).
 - **FI-2** For every tick, sign(ΔI) = sign(ΔP_median). No configuration may break this.
 - **FI-3** A single tick MUST never move the index more than ±(3.5 × v) = ±1.47 %.
-- **FI-4** An exchange feed deviating > 0.5 % from the median for a tick is excluded from that tick's median.
-- **FI-5** With fewer than 3 live exchange feeds, or any feed gap > 2 s, the round MUST abort per MF-1. No tick may ever be extrapolated, interpolated, or invented server-side.
+- **FI-4** An exchange feed deviating > 0.5 % from the median for a tick is excluded from that tick's median. The order is fixed: take every **live** venue's midpoint (FI-18), compute the median, exclude every venue deviating more than 0.5 % from it, then re-derive the composite from the survivors. Both the full sample set and the surviving set are retained for VR-1.
+- **FI-5** SIGNAL LOST is declared when a valid composite tick of at least **3 post-filter surviving venues** cannot be formed; the round MUST then abort per MF-1. The 3-venue floor is a floor on survivors after FI-4's exclusion, not on connected venues: five live venues of which three are excluded as outliers is not a valid tick. A single stale or excluded venue is **excluded, not an outage** — the composite forms from the survivors and the round continues. The 2 s bound is a per-venue liveness test (FI-18), not by itself an abort trigger. No tick may ever be extrapolated, interpolated, or invented server-side.
 - **FI-6** The effective amplification v/max(σ,σ_floor) MUST never exceed 35×.
 - **FI-7** No component of index computation reads any RNG. Static analysis / code review checklist item.
 - **FI-8** Tick timestamps are server-clock, monotonic; a tick with a non-increasing timestamp is rejected and alarmed.
@@ -84,6 +84,61 @@ Conventions: "tick" = one 125 ms server sample. "MUST" = release blocker. All mo
   irregular selected-row gaps, sparse-gap recovery, both fixture selections,
   the default selection and an identical settlement with zero vs. many
   presentation reads.
+- **FI-17** The composite index reads exactly `VENUE_SET_V1` — **Binance,
+  Coinbase Exchange, OKX, Bybit, Kraken** — and from each, only its **BTC/USDT
+  spot best-bid/ask midpoint**. Derivatives, index products, aggregator feeds and
+  cross-quoted pairs MUST NOT be accepted as a sample. The venue set is versioned
+  under VR-3: adding, removing or replacing a venue, or changing the instrument
+  read from one, is a new `VENUE_SET_Vn`, never an operational edit. Every
+  settled round records the venue-set version in force alongside its constants
+  version, and VR-1's payload carries it.
+- **FI-18** A venue is **live** for a tick only when all five hold: (1) the spot
+  instrument is online at the venue — not halted, delisted or in auction; (2) the
+  market-data subscription is established and acknowledged; (3) the sequence or
+  checksum stream is continuous and valid, a gap or failed checksum invalidating
+  the book until rebuilt; (4) the BBO is valid, positive and non-crossed
+  (bid > 0, ask > 0, bid ≤ ask); (5) a **real market-data update** was received
+  within **2,000 ms** on the **server monotonic clock**. **Transport heartbeats
+  (ping/pong) MUST NOT refresh liveness** — a venue whose socket is healthy while
+  its book is frozen is not live, and settling money against a frozen price is
+  the exact failure this criterion exists to prevent. Exchange-supplied
+  timestamps are recorded as data and MUST NOT decide liveness (MF-5). Test each
+  of the five conditions failing alone, and assert a heartbeat-only stream goes
+  not-live at 2,000 ms.
+- **FI-19** A round MUST NOT start until **four venues have been continuously
+  live for 10,000 ms**; a round already running continues while at least three
+  survive FI-4. The asymmetry is intentional: starting at the bare minimum makes
+  the first hiccup abort the round and void every position in it, so round start
+  requires one venue of headroom held long enough to prove it is not a momentary
+  reconnect, while a round with money at risk holds to the specified 3-survivor
+  floor. Test: three live venues never start a round; four live for 9,999 ms
+  never start a round; four live for 10,000 ms do; and a running round survives
+  the drop to three and aborts only on the drop to two.
+- **FI-20** Before M2.2 ships production transport, **written market-data rights
+  covering every `VENUE_SET_V1` venue MUST be in force**, held **either** directly
+  from each venue **or** through an **authorised commercial data vendor**. Where a
+  vendor is used, the **chain of rights MUST be documented end to end** — from the
+  venue, through every intermediary, to the party exercising each right. An
+  undocumented chain is treated as no rights at all, because that is how a
+  regulator or test lab will treat it.
+  The rights MUST cover: **commercial outcome determination**; **archival** for
+  the LG-4 retention period; **third-party certification/lab access** to that
+  archive (M3.2); and **publication of the VR-1 verification data**.
+  Because this is a B2B provider model (ADR 0011), the criterion MUST identify
+  **which party needs which right**: the **provider** requires outcome
+  determination, archival, lab access, and publication **with the right to
+  sublicense**; each **operator** requires outcome determination for its licensed
+  offering and publication to its own players. **The sublicensing right is the
+  clause most likely to be missed and the one that silently blocks the business
+  model**: a provider integrated into ten operators must be able to extend
+  publication rights to all ten and their players, and a licence permitting the
+  provider to publish but not to sublicense looks adequate on paper while making
+  the model unshippable. Sublicensing MUST be explicit in the agreement, never
+  inferred. A venue or vendor that cannot grant the full set is replaced by a
+  versioned spec change (`VENUE_SET_Vn`) with certification evidence regenerated.
+  This is a **release blocker**, tracked from the start of Phase 2: discovering it
+  after M2.2 leaves an archive that cannot lawfully be published and a
+  certification bundle rebuilt from ticks that no longer exist.
 
 ## RL — Round Lifecycle
 
@@ -97,10 +152,10 @@ Conventions: "tick" = one 125 ms server sample. "MUST" = release blocker. All mo
 
 - **EN-1** Entries are accepted from `running` start until T−5 s; a request received after cutoff is rejected with `ENTRY_CLOSED` and full non-debit (stake never leaves the wallet). "Received" means received by the authority, not sent by the client: the window is evaluated after the network leg, so a tap that races the cutoff is late wherever it is judged. A bet armed during intermission is not an entry — it executes at launch, inside the window.
 - **EN-2** An accepted entry executes at the **first tick after server receipt**; `I_e` = that tick's value. Test: a request received between ticks n and n+1 always gets `I_e = I_{n+1}`, never `I_n`.
-- **EN-3** Stake is debited atomically with position creation; if position creation fails, the debit MUST not persist (single transaction).
+- **EN-3** Stake is debited atomically with position creation; if position creation fails, the debit MUST not persist (single transaction). Under the seamless wallet (ADR 0011) atomicity is preserved **by ordering**: request the operator debit, and create the position **only on a confirmed debit**. An unconfirmed or failed debit MUST NOT produce a position, and a confirmed debit whose position creation then fails MUST be rolled back (`WL-4`). The forbidden states are a position the player did not pay for and a debit with no position; test both by injecting failure at each step, including a debit that succeeds with a lost response.
 - **EN-4** Direction ∈ {Surface, Dive}; leverage ∈ {2, 5, 10, 25}; stake is a finite integer number of minor units and ≥ $0.50; stake × leverage ≤ $2,000. Out-of-range requests are rejected before any debit. Validation is deterministic and reports the first failing code in this order: `INVALID_DIRECTION` → `INVALID_LEVERAGE` → `INVALID_STAKE` → `NOTIONAL_LIMIT_EXCEEDED` → `INVALID_TAKE_PROFIT` → `INVALID_STOP_LOSS`. The auto-order codes are in the same validation stage because TP/SL are immutable entry parameters under AO-1. Test every code both alone and with every lower-ranked validation defect present; every rejection leaves wallet and position unchanged.
 - **EN-5** One open position per player per round; a second open request while one is open is rejected. Re-entry after settlement in the same round is allowed within the entry window.
-- **EN-6** If the round aborts or ends before an accepted entry executes, the stake is fully refunded and the position never existed in the ledger.
+- **EN-6** If the round aborts or ends before an accepted entry executes, the stake is fully refunded and the position never existed in the ledger. The refund is a WL refund keyed to the original debit (`WL-3`), and the provider ledger records the compensating entries (LG-3).
 - **EN-7** Every entry request carries a client-generated idempotency id; replaying the same id never creates a second position or a second debit. Enforced in the engine, not merely documented: a request whose id matches the position the engine already holds is a **no-op that returns the existing position** — same state, same `position-opened` event — rather than a rejection, because the replay is the *same* request and its original outcome was success. Ranked above every EN-8 rejection for that reason: a retry after a dropped ack must not be told `POSITION_OPEN` about its own position. The window is the position's lifetime in engine state (through `done`, until `clearSettled`); beyond that the id has left the engine and EN-5/LG-3 govern. Test: replay an accepted request verbatim and assert one position, one debit, and an unchanged wallet on the replay.
 - **EN-8** Entry handling has three fixed stages. **Stage 0: idempotency.** An accepted `OpenRequest.id` replay returns its original position before any validation or eligibility check (EN-7). **Stage 1: request validation**, in EN-4's order: `INVALID_DIRECTION` → `INVALID_LEVERAGE` → `INVALID_STAKE` → `NOTIONAL_LIMIT_EXCEEDED` → `INVALID_TAKE_PROFIT` → `INVALID_STOP_LOSS`. **Stage 2: eligibility**, in this order: `LOSS_LIMIT_REACHED` → `ENTRY_CLOSED` → `POSITION_OPEN` → `COOLING_OFF` → `INSUFFICIENT_BALANCE` → `NO_PRICE`. Validation precedes eligibility because malformed parameters must never reach a wallet or position path; within eligibility, a condition the player cannot clear is never masked by one that clears on its own. A loss-locked player (RP-2) with an otherwise valid request MUST NOT be told "insufficient balance", which implies that depositing more would let them continue. Test each rank with every lower-ranked condition simultaneously true. Every rejection leaves wallet, position and last result untouched.
 - **EN-9** A request arriving with no valid entry price is rejected as `NO_PRICE`, distinct from MF-1 SIGNAL LOST: it rejects one request, settles nothing, aborts no round, and is not alarmed as an outage. Player-facing copy MUST NOT present it as a feed failure. `NO_PRICE` rate is a counted metric (BO-2) because a rising rate indicates an entry-window or round-start defect.
@@ -238,16 +293,73 @@ Conventions: "tick" = one 125 ms server sample. "MUST" = release blocker. All mo
 
 ## LG — Ledger & Wallet
 
-- **LG-1** Double-entry: every debit has a matching credit account; the sum over all accounts is invariant. Continuous invariant check in tests; nightly reconciliation job in production.
+> **Model note (ADR 0011).** Crush Depth is a **B2B game provider**. The casino
+> operator holds player funds and is the **balance authority**; the provider
+> **does not custody player funds**. The ledger below is the provider's
+> **internal game ledger** — internal game accounts and an operator-receivable,
+> not custody accounts. It exists for dispute resolution, reconciliation,
+> certification evidence and correctness, all of which survive the loss of
+> custody. Movement of real money happens through the WL wallet seam.
+
+- **LG-1** Double-entry: every debit has a matching credit account; the sum over all accounts is invariant. Continuous invariant check in tests; nightly reconciliation job in production. The invariant is checked **continuously in tests**, not only nightly, because it is how settlement defects surface at all. Provider accounts are internal game accounts plus an operator-receivable; **no ledger account represents custody of player funds**.
 - **LG-2** All amounts are integer minor units end-to-end; a float in any money-typed field fails the type system (branded types) and CI.
 - **LG-3** Every ledger operation is idempotent by operation id and immutable once written; corrections are new compensating entries, never edits.
-- **LG-4** Bet, settlement, refund, and void records retain: player id, round id, position id, direction, stake, leverage, `I_e`, entry tick id, settlement tick id, `M`, payout, θ in force, timestamps. Retention per jurisdiction (default ≥ 5 years).
+- **LG-4** Bet, settlement, refund, and void records retain: player id, round id, position id, direction, stake, leverage, `I_e`, entry tick id, settlement tick id, `M`, payout, θ in force, timestamps. Retention per jurisdiction (default ≥ 5 years). Under ADR 0011 "player id" is the **opaque operator-scoped player reference**, never identity documents or PII: the provider stores what it needs to reconstruct a round and nothing that duplicates the operator's regulated identity systems. Every record additionally retains the **operator id** and the **wallet idempotency key(s)** of the WL operations it corresponds to, so a provider record and an operator wallet transaction can be matched during reconciliation (`WL-6`).
+- **LG-5** The provider's internal ledger MUST reconcile against the operator's wallet. Every provider settlement, refund and void maps to WL operations by idempotency key, and a **reconciliation run reports every divergence** — provider record with no operator transaction, operator transaction with no provider record, or matched pair with differing amounts. Divergence is an **exception to be resolved, never auto-corrected by trusting either side**: a provider that silently adopts the operator's number destroys its own audit position, and one that silently overrides it is claiming custody it does not have.
+
+## WL — Operator Wallet Integration (B2B seam)
+
+> Applies to the seamless-wallet model adopted in ADR 0011: the operator is the
+> balance authority and the provider calls it per transaction. The internal
+> contract below is provider-side; per-operator adapters map it onto each
+> operator's actual API.
+
+- **WL-1** The provider exposes exactly four wallet operations — **debit**
+  (stake at entry execution), **credit** (settlement payout > 0), **refund**
+  (EN-6 unexecuted entry, MF-2 void), and **rollback** (a debit whose outcome is
+  unknown or whose round was voided). Refund and rollback are **keyed to the
+  original debit**, never free-standing money movements.
+- **WL-2** Every operation carries a **provider-generated idempotency key** and
+  the full LG-4 context. Every operation is **idempotent by that key**: a retry
+  returns the original result and MUST NOT move money twice. This is a MUST
+  because a timeout is indistinguishable from a lost response — without
+  idempotency the only safe behaviour after a failed debit is to leave the
+  player's money in an unknown state. Test: replay every operation type
+  verbatim, and assert one money movement and an unchanged operator balance.
+- **WL-3** A refund fully reverses its debit — no partial refunds, no
+  refunds exceeding the original stake, no refund of an already-refunded or
+  rolled-back debit.
+- **WL-4** **Rollback is the recovery path for unknown outcomes.** Where a debit's
+  result cannot be determined, the provider retries with the same key and then
+  rolls back; it MUST NOT synthesise a balance, assume success, or assume
+  failure. Test the three-way split — confirmed success, confirmed failure,
+  unknown — and assert the player's money ends in a defined state in all three.
+- **WL-5** **The provider never treats its mirrored balance as authoritative.**
+  Any displayed or engine-held balance is a mirror of the operator's; a
+  divergence is reconciled to the operator (`LG-5`), never resolved by the
+  provider overwriting it. `INSUFFICIENT_BALANCE` (EN-8) is decided by the
+  operator's debit response, not by the mirror.
+- **WL-6** Every WL operation is recorded in the provider ledger with its
+  idempotency key and operator id, so provider records and operator wallet
+  transactions match one-to-one during reconciliation (`LG-5`).
+- **WL-7** Operator-supplied **eligibility and responsible-play state** —
+  self-exclusion, cooling-off, jurisdictional block, operator loss/deposit
+  limits, session validity — is enforced server-side before any entry is
+  accepted, and ranks in EN-8's eligibility stage. The provider **enforces and
+  never overrides**; where an operator restriction and a session restriction
+  conflict, the stricter binds (RP-2).
+- **WL-8** Wallet latency and failure are on the entry critical path and MUST be
+  bounded: a wallet call exceeding the configured timeout rejects the entry
+  cleanly with no position and no orphaned debit, and the failure is counted as
+  a BO-2 metric. A wallet outage MUST NOT abort the round for players already
+  holding positions — settlement of open positions retries and escalates to a
+  reconciliation exception rather than voiding a determinable outcome.
 
 ## MF — Malfunctions & Degenerate Cases
 
 - **MF-1** SIGNAL LOST (per FI-5): all open positions auto-surface at the last valid tick, the round aborts, clients display the abort state. Positions already crushed stay crushed; ascents in flight settle at the last valid tick.
-- **MF-2** Server crash recovery: any position lacking a settlement record is voided and refunded at stake; the affected round is marked void; no round is ever resumed. Recovery drill is a release test.
-- **MF-3** "Malfunction voids pays": a settlement produced in violation of this spec is voidable per the published terms; the void path exists in the ledger (LG-3 compensating entries) and back office.
+- **MF-2** Server crash recovery: any position lacking a settlement record is voided and refunded at stake; the affected round is marked void; no round is ever resumed. Recovery drill is a release test. Under ADR 0011 recovery also **rolls back the position's debit at the operator** (`WL-4`), keyed to the original debit id, and any debit whose outcome is unknown after recovery is resolved by rollback rather than by assuming either result. A recovery path that guesses whether a debit landed is a release blocker.
+- **MF-3** "Malfunction voids pays": a settlement produced in violation of this spec is voidable per the published terms; the void path exists in the ledger (LG-3 compensating entries) and back office, and reverses at the operator through WL refund/rollback keyed to the original operations.
 - **MF-4** Client disconnect changes nothing server-side: auto orders still fire; worst case RL-4 applies. Test: kill the client post-entry, verify identical settlement.
 - **MF-5** Clock skew: all timing derives from the server clock; client timestamps are never trusted for money.
 
@@ -266,10 +378,17 @@ Conventions: "tick" = one 125 ms server sample. "MUST" = release blocker. All mo
 
 ## RP — Responsible Play
 
+> **Model note (ADR 0011).** The **operator** owns the primary
+> responsible-gambling account controls — self-exclusion, deposit limits,
+> cooling-off, age verification — and is authoritative on whether a player may
+> play. The **provider enforces** what the operator supplies and never overrides
+> it, plus the in-session controls below. Where an operator restriction and a
+> provider/session restriction conflict, **the stricter binds**.
+
 - **RP-1** Session clock is always visible in every client build.
-- **RP-2** Player-set loss limit blocks new entries at the threshold for the session; cannot be raised mid-session (lowering is immediate; raising takes effect after a cool-down per jurisdiction, default 24 h).
+- **RP-2** Player-set loss limit blocks new entries at the threshold for the session; cannot be raised mid-session (lowering is immediate; raising takes effect after a cool-down per jurisdiction, default 24 h). The limit is **dual-sourced**: an operator-supplied restriction the provider MUST honour, plus an optional in-session limit the provider may offer where operator policy permits. **The stricter of the two binds**, and enforcement is server-side and un-bypassable by a modified client regardless of source. Test an operator limit alone, a session limit alone, and both with each in turn the stricter.
 - **RP-3** Reality check every 15 min: modal with session time, wagered, net; play cannot continue until acknowledged.
-- **RP-4** Jurisdictional hooks exist for: deposit limits, self-exclusion, mandatory breaks, age verification gate. v1 ships the interfaces even where a market doesn't require them.
+- **RP-4** Jurisdictional hooks exist for: deposit limits, self-exclusion, mandatory breaks, age verification gate. v1 ships the interfaces even where a market doesn't require them. Under ADR 0011 these are **operator-owned and provider-enforced**: the provider builds no registration, KYC, deposit or withdrawal flow, and instead consumes operator-supplied eligibility state (`WL-7`) and blocks entry accordingly. A provider that lets a self-excluded or ineligible player open a position is a compliance incident **regardless of which system made the mistake**, so enforcement is server-side and tested against a hostile client.
 - **RP-5** Auto re-entry (if ever enabled) is bounded (max consecutive rounds) and disabled by default.
 
 ## UI — Client Behavior
@@ -385,17 +504,19 @@ Conventions: "tick" = one 125 ms server sample. "MUST" = release blocker. All mo
 
 - **PF-1** 60 fps median / ≥ 45 fps p5 on the reference mid-range device set during a volatile round with a position open; auto-degradation tiers engage below threshold without gameplay change.
 - **PF-2** Client tick-to-glass latency (tick publish → rendered, including the 150 ms buffer) ≤ 250 ms p95 on reference network profiles.
-- **PF-3** Server sustains the target concurrent-player load with tick fan-out jitter ≤ 25 ms p99 (load target set before Phase 2 exit).
+- **PF-3** Server sustains **10,000 concurrent players in one shared round**, all holding active positions, at 8 Hz, with internal tick fan-out jitter ≤ 25 ms p99 measured over a **one-hour soak**. A **20,000-connection, five-minute resilience burst** MUST additionally be survived without data loss or settlement error. The single-round framing is deliberate: every player in a round is settled against the same tick, so there is no sharding escape hatch — this is 10,000 recipients of one message every 125 ms. Topology per ADR 0010: a deterministic single-writer round authority behind horizontally scalable stateless WebSocket gateways; only connection handling and fan-out scale out.
 
 ## BO — Back Office & Audit (operator acceptance)
 
 - **BO-1** Round recall: any round reconstructable (price series, every position, every event) from the back office by round id or player id.
 - **BO-2** Live dashboards: actual RTP (rolling 24 h / 30 d) vs target, exposure per direction, feed health, abort counts, and rejection counts broken out by EN-8 code (`NO_PRICE` in particular — see EN-9). RTP deviation alarm at ±1.5 % over 24 h at volume.
 - **BO-3** Immutable audit log of every config change (θ, caps, limits) with actor identity.
-- **BO-4** Player-level statement export (bets, results, timestamps) for dispute resolution.
+- **BO-4** Player-level statement export (bets, results, timestamps) for dispute resolution, keyed by the opaque operator-scoped player reference and filterable by operator. The provider MUST be able to answer a dispute from **its own records** — "ask the operator" is not a dispute-resolution path, and is not an evidence bundle a lab will accept.
 
 ---
 
 ## Release gate summary
 
-A build is casino-submittable when: every MUST above has a passing automated or documented manual test; PL-6's calibration report is attached; MF-2's recovery drill is documented; and a legal opinion on the target jurisdiction's classification of price-settled wagers is on file. Track these four as the certification checklist.
+A build is casino-submittable when: every MUST above has a passing automated or documented manual test; PL-6's calibration report is attached; MF-2's recovery drill is documented; and a legal opinion on the target jurisdiction's classification of price-settled wagers is on file.
+
+Under the B2B provider model (ADR 0011) four further items join the checklist: **FI-20's market-data rights** are in force with a documented chain and explicit **sublicensing** for publication; the **WL wallet contract** is agreed with the integrating operator and its idempotency/rollback behaviour tested against that operator's API; **provider (supplier) licensing and per-game approval** are obtained in the target market alongside the operator's licence; and the **laboratory pre-assessment** of the price-settled outcome model has been obtained before production M2.2 completion. Track these eight as the certification checklist.
