@@ -140,6 +140,18 @@ Conventions: "tick" = one 125 ms server sample. "MUST" = release blocker. All mo
   after M2.2 leaves an archive that cannot lawfully be published and a
   certification bundle rebuilt from ticks that no longer exist.
 
+- **FI-21** Synthetic client QA replays are explicit, deterministic and never
+  represented as recorded market evidence. Under `?feed=replay`,
+  `fixture=upper-limit`, `fixture=lower-limit`, and `fixture=constant` resolve
+  to generated 125 ms fixtures spanning at least 100,000 ms. The upper fixture
+  crosses the renderer's `DEPTH_MIN` numeric clamp and then retreats; the lower
+  fixture crosses `DEPTH_MAX` and then recovers for at least four seconds; the
+  constant fixture emits `I = 1000` and `ret = 0` throughout. All remain dormant
+  during `waiting` and `launching` and begin with `resetRound()` at the start of
+  the 90 s `running` phase. They MUST NOT change the simulator default, the
+  flash-crash fallback, FI-14 provenance, or any calibration input. Test URL
+  selection, full-round span and each transformed trajectory.
+
 ## RL — Round Lifecycle
 
 - **RL-1** State machine is exactly `waiting → launching → running → ending → settling → waiting`; no other transitions exist. Every transition is logged with server timestamp and round id. "No other transitions exist" is a property of the **phase setter**, not of its callers: the setter itself MUST reject any transition outside the graph, including a phase to itself. Phase entry carries side effects that are not idempotent — entering `settling` settles every open position (RL-4) — so an illegal or repeated transition is a double settlement, not a cosmetic state error. A machine that is correct only because one caller happens to drive it in order is one call site away from paying a position out twice. Test: from every phase, assert every non-successor target (self included) leaves the phase unchanged and fires no side effect.

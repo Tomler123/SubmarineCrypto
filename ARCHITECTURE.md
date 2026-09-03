@@ -150,9 +150,12 @@ In Phase 2 a `WsIndexSource` implements the same contract and replaces it in
 `feed/index.js`. **Nothing outside `feed/` may know which source is running.**
 The client feed seam keeps the simulator as the default and accepts
 `?feed=replay` as an explicit replay opt-in. `fixture=flash-crash` and
-`fixture=calm` select the two playable recorded intervals; an omitted or
-unrecognised replay fixture falls back to `flash-crash`. No other client module
-imports a concrete source or resolves a fixture name.
+`fixture=calm` select the two playable recorded intervals. Three clearly
+synthetic, full-round QA selections exercise presentation extremes without
+claiming market provenance: `fixture=upper-limit`, `fixture=lower-limit`, and
+`fixture=constant`. An omitted or unrecognised replay fixture still falls back
+to `flash-crash`. No other client module imports a concrete source or resolves
+a fixture name.
 
 **Every source extends `IndexSourceBase` (`packages/feed/src/index-source-base.ts`)**, which owns the
 subscriber list and the single emit path, `_publish`. That path is the FI-8

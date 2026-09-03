@@ -63,7 +63,7 @@ engineering calibration artifact; it is not offered as a playable client
 replay. Both client selections cover the fixed 90 s round without looping or
 padding.
 
-Playable client URLs are:
+Recorded-market client URLs are:
 
 ```text
 ?feed=replay&fixture=flash-crash
@@ -72,6 +72,34 @@ Playable client URLs are:
 
 Replay without `fixture`, or with an unrecognised fixture name, uses
 `flash-crash`. The normal client default remains the simulator.
+
+## Synthetic QA fixtures
+
+The following files are generated test data, not recorded BTC prices and not
+calibration or fairness evidence. Each contains 801 rows at exactly 125 ms
+spacing (100.0 s first-to-last), so it covers the full 90 s running phase
+without looping. The replay source is dormant during the preceding 8 s waiting
+and 1.4 s launching phases; row zero is emitted when `running` starts.
+
+| File | Scenario | SHA-256 |
+|---|---|---|
+| `synthetic-upper-limit-125ms.csv` | 10 s flat; 7 s rise through the `DEPTH_MIN` index threshold; 7 s retreat; then flat | `4e64dcbd1d194e07343495bfcda80e1fc889695290f5d43af3680e7a7272d3b8` |
+| `synthetic-lower-limit-125ms.csv` | maximum permitted index descent through `DEPTH_MAX`; 4 s recovery; then flat | `cf09e03e350867758e68ebe5eff12ea27df690b0d29d233510a39606e189584b` |
+| `synthetic-constant-price-125ms.csv` | raw price and transformed index remain constant for timing oxygen and cash-out tests | `736219d8a23cfd23c42735691c86e76e860725955fe9025cc4fffe491c1e4453` |
+
+QA client URLs are:
+
+```text
+?feed=replay&fixture=upper-limit
+?feed=replay&fixture=lower-limit
+?feed=replay&fixture=constant
+```
+
+Regenerate all three deterministic files with:
+
+```text
+node packages/feed/scripts/generate-synthetic-qa-fixtures.mjs
+```
 
 To reproduce any file after downloading the source archive:
 

@@ -6,6 +6,9 @@ import { now } from '../util/math.js';
 import { PresentationInterpBuffer } from './presentation-interp-buffer.ts';
 import flashCrashFixtureCsv from '../../../../packages/feed/fixtures/btcusdt-binance-2021-05-19-flash-crash-100ms.csv?raw';
 import calmFixtureCsv from '../../../../packages/feed/fixtures/btcusdt-binance-2021-05-19-calm-playable-100ms.csv?raw';
+import upperLimitFixtureCsv from '../../../../packages/feed/fixtures/synthetic-upper-limit-125ms.csv?raw';
+import lowerLimitFixtureCsv from '../../../../packages/feed/fixtures/synthetic-lower-limit-125ms.csv?raw';
+import constantPriceFixtureCsv from '../../../../packages/feed/fixtures/synthetic-constant-price-125ms.csv?raw';
 
 const replayScheduler = {
   every(intervalMs, task){ setInterval(task, intervalMs); },
@@ -14,6 +17,9 @@ const replayScheduler = {
 const REPLAY_FIXTURES = {
   'flash-crash': flashCrashFixtureCsv,
   calm: calmFixtureCsv,
+  'upper-limit': upperLimitFixtureCsv,
+  'lower-limit': lowerLimitFixtureCsv,
+  constant: constantPriceFixtureCsv,
 };
 
 /** Resolve a playable replay fixture. Omitted and unknown names use flash-crash. */

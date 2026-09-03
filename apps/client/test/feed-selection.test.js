@@ -13,7 +13,7 @@ function sourceFiles(directory){
   });
 }
 
-describe('FI-13 — client source selection stays inside the feed seam', () => {
+describe('FI-13/FI-21 — client source selection stays inside the feed seam', () => {
   beforeEach(() => { vi.useFakeTimers(); vi.resetModules(); });
   afterEach(() => { vi.useRealTimers(); });
 
@@ -32,7 +32,10 @@ describe('FI-13 — client source selection stays inside the feed seam', () => {
   it.each([
     ['flash-crash', 1_621_430_420_000],
     ['calm', 1_621_382_400_000],
-  ])('resolves fixture=%s to its recorded BTC interval', async (fixture, openingTimestamp) => {
+    ['upper-limit', 1_700_000_000_000],
+    ['lower-limit', 1_700_000_101_000],
+    ['constant', 1_700_000_202_000],
+  ])('resolves fixture=%s to its documented replay interval', async (fixture, openingTimestamp) => {
     const { createIndexSource } = await import('../src/feed/index.js');
     const replay = createIndexSource(`?feed=replay&fixture=${fixture}`);
     const ticks = [];
@@ -43,6 +46,59 @@ describe('FI-13 — client source selection stays inside the feed seam', () => {
 
     expect(ticks[0].t).toBe(openingTimestamp);
     expect(ticks.at(-1).t - ticks[0].t).toBeGreaterThanOrEqual(90_000);
+  });
+
+  it('provides an upper-limit QA trajectory that breaches the top clamp then retreats', async () => {
+    const { createIndexSource } = await import('../src/feed/index.js');
+    const { CFG } = await import('../src/config/constants.js');
+    const replay = createIndexSource('?feed=replay&fixture=upper-limit');
+    const ticks = [];
+    replay.onTick((tick) => ticks.push(tick));
+
+    replay.resetRound();
+    vi.advanceTimersByTime(90_125);
+
+    const upperClampIndex = CFG.IDX0 * Math.exp(
+      (CFG.BASE_DEPTH - CFG.DEPTH_MIN) / CFG.DEPTH_K,
+    );
+    const peakIndex = Math.max(...ticks.map(({ v }) => v));
+    expect(peakIndex).toBeGreaterThan(upperClampIndex);
+    expect(ticks.at(-1).v).toBeLessThan(peakIndex * 0.6);
+    expect(ticks.filter(({ ret }) => ret > 0)).toHaveLength(56);
+    expect(ticks.filter(({ ret }) => ret < 0)).toHaveLength(56);
+  });
+
+  it('provides a lower-limit QA trajectory that breaches the bottom clamp then recovers', async () => {
+    const { createIndexSource } = await import('../src/feed/index.js');
+    const { CFG } = await import('../src/config/constants.js');
+    const replay = createIndexSource('?feed=replay&fixture=lower-limit');
+    const ticks = [];
+    replay.onTick((tick) => ticks.push(tick));
+
+    replay.resetRound();
+    vi.advanceTimersByTime(90_125);
+
+    const lowerClampIndex = CFG.IDX0 * Math.exp(
+      (CFG.BASE_DEPTH - CFG.DEPTH_MAX) / CFG.DEPTH_K,
+    );
+    const values = ticks.map(({ v }) => v);
+    const troughIndex = Math.min(...values);
+    expect(troughIndex).toBeLessThan(lowerClampIndex);
+    expect(ticks.at(-1).v).toBeGreaterThan(troughIndex * 1.5);
+    expect(ticks.filter(({ ret }) => ret > 0)).toHaveLength(32);
+  });
+
+  it('provides a constant-price QA trajectory for timing oxygen and cash-out', async () => {
+    const { createIndexSource } = await import('../src/feed/index.js');
+    const replay = createIndexSource('?feed=replay&fixture=constant');
+    const ticks = [];
+    replay.onTick((tick) => ticks.push(tick));
+
+    replay.resetRound();
+    vi.advanceTimersByTime(90_125);
+
+    expect(ticks.length).toBeGreaterThanOrEqual(721);
+    expect(ticks.every(({ v, ret }) => v === 1_000 && ret === 0)).toBe(true);
   });
 
   it('uses flash-crash as the documented fallback for an omitted or unknown fixture', async () => {
