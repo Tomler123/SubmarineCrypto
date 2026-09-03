@@ -22,9 +22,14 @@
  * `OpenRequest.id` is a no-op returning the existing position instead of a
  * second position and a second debit.
  *
- * Still to come: the auto-order triggers themselves (M1.5). The CR-1 tick order
- * in `onTick` already has the slot, and CR-6b fixes the tau they must be
- * evaluated at, so M1.5 fills the slot rather than rewriting the loop.
+ * M2.0 added the round-level fan-out (`round.ts`, RS-1…RS-8): a `RoundState`
+ * holding a map of opaque player reference to the *existing* per-player
+ * `EngineState`, plus round id, phase and tick series. It is a fan-out **around**
+ * the per-player entry points, which are unchanged — every M1.3–M1.5 criterion
+ * stays pinned to the same functions and the same objects. One authoritative
+ * tick reaches every player through one primitive that shares no accumulator
+ * between them, which is what makes order-independence (RS-2) and isolation
+ * (RS-3) structural rather than incidental.
  *
  * Structural rule: this package must remain importable under plain Node with
  * no DOM shim. Adding a dependency on anything in apps/client breaks the
@@ -71,6 +76,34 @@ export {
   setLossLocked,
   settleAtRoundEnd,
 } from './engine.js';
+
+export type {
+  AnyRejectCode,
+  DirectionalExposure,
+  PlayerRef,
+  RoundEvent,
+  RoundOpenRequest,
+  RoundPhase,
+  RoundRejectCode,
+  RoundRejection,
+  RoundResult,
+  RoundState,
+} from './round-types.js';
+
+export {
+  directionalExposure,
+  initialRound,
+  resetRoundPhase,
+  roundClearSettled,
+  roundOpen,
+  roundRequestAscent,
+  roundSetLossLocked,
+  roundSettleAtRoundEnd,
+  roundTick,
+  seatPlayer,
+  setRoundPhase,
+  unseatPlayer,
+} from './round.js';
 
 export {
   ascentDue,

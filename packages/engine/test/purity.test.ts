@@ -87,4 +87,56 @@ describe('engine purity — zero DOM, zero render imports', () => {
     expect(a).toEqual(b);
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
   });
+
+  /**
+   * M2.0: the same guard, one layer up. The round fan-out is what the Phase 2
+   * authority actually runs, so a whole round — every player, every event — must
+   * be reproducible from its tick series and action script alone. RS-2 tests
+   * order-independence within a run; this tests reproducibility across runs,
+   * which is what VR-1's round recomputation and the M2.2 archive depend on.
+   */
+  it('M2.0: a whole round replays byte-identically from its tick series', async () => {
+    const { cents } = await import('@crush/ledger');
+    const {
+      initialRound, initialState, roundOpen, roundRequestAscent, roundTick, seatPlayer,
+    } = await import('../src/index.js');
+
+    const ticks = [1000, 1004.5, 997.25, 1012.75, 1003.5, 991.125, 1008.75].map((v, i) => ({
+      t: i * 125,
+      v,
+    }));
+
+    const runOnce = (): unknown => {
+      let round = initialRound('r-purity');
+      for (const ref of ['alice', 'bob', 'carol']) {
+        round = seatPlayer(round, ref, initialState(cents(100_000)));
+      }
+      const events: unknown[] = [];
+      const first = ticks[0]!;
+      round = roundOpen(round, {
+        player: 'alice',
+        request: { dir: 1, stake: cents(2500), lev: 10, id: 'a1' },
+      }, first).state;
+      round = roundOpen(round, {
+        player: 'bob',
+        request: { dir: -1, stake: cents(1500), lev: 25, id: 'b1' },
+      }, first).state;
+      round = roundRequestAscent(round, 'alice', 250).state;
+
+      for (const tk of ticks.slice(1)) {
+        const stepped = roundTick(round, tk);
+        round = stepped.state;
+        events.push(...stepped.events);
+      }
+      return {
+        events,
+        players: [...round.players.entries()].map(([ref, s]) => [ref, s.wallet, s.lastResult]),
+      };
+    };
+
+    const a = runOnce();
+    const b = runOnce();
+    expect(a).toEqual(b);
+    expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+  });
 });

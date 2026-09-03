@@ -22,13 +22,13 @@ client code.
 | | |
 |---|---|
 | Phase complete | **1.0** — prototype, module split · **1.5** — correctness (10 of 10 tasks + Close Calls) |
-| Phase in progress | **2** — server authority; M2.0 is the next commit |
+| Phase in progress | **2** — server authority; **M2.0 is complete**, M2.1 is next |
 | Commercial model | **B2B game provider** — operator holds funds and player; provider owns index, round, engine, settlement (ADR 0011) |
-| Engine | Pure, immutable TypeScript; entry validation, auto-orders, caps and authoritative Close Call facts live. **Single-player shaped** — one wallet, one position (see M2.0) |
+| Engine | Pure, immutable TypeScript; entry validation, auto-orders, caps and authoritative Close Call facts live. **Multi-player shaped since M2.0** — a `RoundState` fan-out around the unchanged per-player entry points (RS-1…RS-8, ADR 0012) |
 | Tests | **628 passed, 4 skipped** across 50 files; package coverage gates pass (Close Call module 100%; sim 96.04% lines, 84.55% branches, 100% functions) |
 | Spec documents | **2 of 2** — 127 acceptance ids across 20 categories |
 | Carried forward from 1.5 | PF-1 on-device measurement and by-eye Pixi parity review — both gate flipping the renderer default, neither gates M2 |
-| Next planned work | **M2.0** (multi-player engine shape) → **M2.1** (feed aggregation) → **M2.2** (tick authority) |
+| Next planned work | **M2.1** (feed aggregation) → **M2.2** (tick authority) → **M2.3** (ledger) |
 
 ---
 
@@ -552,23 +552,33 @@ enforcement rather than account ownership.
 > determines the ledger's account structure, the entry path's failure modes and
 > the round server's latency budget. This is listed as a decision rather than an
 > implementation detail because all three are expensive to change afterwards.
+>
+> *Sequencing refined 2026-09-03.* "Finalised" is the operative word, and this is
+> **less blocking than an earlier reading suggested**. Every operator exposes a
+> different wallet API, so the internal contract cannot be settled in the
+> abstract — it is **validated by the first real integration**, with per-operator
+> adapters mapping onto it. Define the internal shape now and expect the first
+> real operator's API to correct it. M2.1 and M2.3 proceed meanwhile; what must
+> not happen is M2.4 binding settlement to a contract nobody has tested against a
+> real counterparty. See `docs/BUSINESS-CONTEXT.md` for the plain-language
+> version and the current state of the commercial unknowns.
 
-| id | Milestone | Shape | Depends on |
-|---|---|---|---|
-| M2.0 | Multi-player engine shape | pure package | — |
-| M2.1 | Index aggregation + Signal Lost decision | pure package | — |
-| M2.2 | Live feed transport + tick archive | service | M2.1 |
-| M2.3 | Internal double-entry ledger + reconciliation | pure package + store | wallet contract |
-| M2.4 | Authoritative round server + wallet seam | service | M2.0–M2.3, wallet contract |
-| M2.5 | Operator session integration + eligibility enforcement | service | M2.4 |
-| M2.6 | House risk engine + kill switch | service | M2.4, M2.5 |
+| id | Milestone | Shape | Depends on | Status |
+|---|---|---|---|---|
+| M2.0 | Multi-player engine shape | pure package | — | **done** |
+| M2.1 | Index aggregation + Signal Lost decision | pure package | — | next |
+| M2.2 | Live feed transport + tick archive | service | M2.1 | |
+| M2.3 | Internal double-entry ledger + reconciliation | pure package + store | wallet contract | |
+| M2.4 | Authoritative round server + wallet seam | service | M2.0–M2.3, wallet contract | |
+| M2.5 | Operator session integration + eligibility enforcement | service | M2.4 | |
+| M2.6 | House risk engine + kill switch | service | M2.4, M2.5 | |
 
 M2.0, M2.1 and M2.3 have no dependency on each other and can be built in any
 order, or in parallel if there is ever more than one developer.
 
 ---
 
-**M2.0 — Multi-player engine shape** · pure package · 1–2 weeks
+**M2.0 — Multi-player engine shape** · pure package · **COMPLETE**
 
 The engine is pure and correct, and it models **one player**. A round server
 applies one authoritative tick to every open position in the round and settles
@@ -607,6 +617,23 @@ still pass; coverage gate holds.
 *New acceptance ids needed:* an `RS` (round state) group — fan-out determinism,
 player isolation, canonical event ordering, and the per-round directional
 aggregate that M2.6 caps against.
+
+*Delivered.* `RS-1`…`RS-8` are written and enforced; `round.ts` and
+`round-types.ts` land in `@crush/engine` at 100 % lines, branches and functions.
+Every existing per-player test passes **unmodified** — the suite goes 637 → 680
+across 51 files. Order-independence is property-tested at 500 players under
+shuffled insertion orders (state *and* event log), isolation by interleaving one
+player alone against the same player among 500 others, and population invariance
+of money at 2,000. The purity guard covers the new modules and gains a
+round-level replay-determinism test beside the per-player one. Two criteria
+beyond the planned four were added on contact with the code: `RS-5` (explicit
+seating, `UNKNOWN_PLAYER` deliberately kept out of the EN-8-ranked `RejectCode`
+union) and `RS-6` (RL-1 enforced by the round's own phase setter, since entering
+`settling` twice is now a population-wide double settlement). See ADR 0012.
+
+*Open from this milestone:* fan-out cost at PF-3's 10,000-player scale is
+unmeasured — it is a real-process question, not a package one — and round-level
+refund/void paths (EN-6, MF-1) wait on M2.1 and the wallet contract.
 
 ---
 
@@ -683,6 +710,33 @@ by a crash injected between the two.
 
 *Carry from Phase 1.5:* the M1.6 replay fixtures become this source's regression
 corpus — the same recorded flash crash must produce the same archive.
+
+*Archive mode — how this milestone proceeds before rights are settled
+(decided 2026-09-03).* The transport and the archive are built now, on the
+exchanges' **free public feeds**, in **development mode**. What waits on `FI-20`
+is not the code but the **retention of the certification archive** — the corpus
+we intend to hand a lab or regulator as VR-1 evidence. Recording for development,
+test and regression is unaffected; that data is disposable and nobody is asked to
+rely on it.
+
+The distinction matters because it is the difference between a blocked milestone
+and an unblocked one. The aggregation logic is **rights-agnostic** — median,
+0.5 % exclusion and the three-feed floor are identical whether the venue set has
+five members or four — so a venue refusing changes a versioned list, not an
+algorithm. Only the *retained evidence* is spoiled by a refusal, so only the
+retained evidence waits. Treat starting certification retention as an explicit,
+dated decision with the rights position in hand, not as a default that switches
+itself on the first time the service runs in production.
+
+*Degradation floor if venues refuse (decided 2026-09-03).* `VENUE_SET_V1` is
+five. **Three or four is a versioned venue-set change** and nothing more — three
+is already the spec's floor, because a median needs three samples to exclude an
+outlier and `FI-5`/`FI-19` abort the round below it. **One or two venues is not a
+configuration change and MUST NOT be treated as one**: a single venue can be
+manipulated or print badly and payouts would follow it directly, and it forfeits
+the "provably market-driven" claim the design rests on — which is the first thing
+a test lab will probe. If procurement ever lands there, it re-opens the index
+design with the owner rather than lowering a parameter.
 
 *Release blocker that is not a code task (`FI-20`).* Written market-data rights
 covering every `VENUE_SET_V1` venue must be in force — held **either direct from

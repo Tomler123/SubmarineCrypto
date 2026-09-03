@@ -82,7 +82,7 @@ them.
 | Package | Populated by | Holds |
 |---|---|---|
 | `@crush/ledger` | **live now** | branded `Cents`, round-half-away-from-zero, arithmetic guards |
-| `@crush/engine` | **live through Close Calls** | pure position lifecycle, oxygen, crush, settlement, entry validation/cooldown, TP/SL/max-win triggers, payout caps and authoritative Close Call facts |
+| `@crush/engine` | **live through M2.0** | pure position lifecycle, oxygen, crush, settlement, entry validation/cooldown, TP/SL/max-win triggers, payout caps, authoritative Close Call facts, and the multi-player `RoundState` fan-out |
 | `@crush/feed` | **live through M1.6** | TypeScript `IndexSource` contract/base gate, published transform, simulated and replay sources, `InterpBuffer`, fixture parser |
 | `@crush/gateway` | M2.2 | request/ack seam, optimistic mirror |
 | `@crush/sim` | **live through M1.7** | deterministic Monte-Carlo RTP harness, behavior models, source datasets, statistics and canonical report data |
@@ -104,6 +104,47 @@ metadata. The client projector formats the event and suppresses duplicate ids;
 it has no outcome formula. Fake social actors run isolated engine states, so
 their Close Calls use the same seam instead of the former client-side static
 line, multiplier and `Math.round` path.
+
+### The round fan-out seam (M2.0)
+
+`@crush/engine` now holds two layers, and the distinction is load-bearing.
+`EngineState` is **one player**; `RoundState` is **one round holding many of
+them** — a round id, the phase, the applied tick series, and a
+`ReadonlyMap<PlayerRef, EngineState>` of the *existing* per-player state,
+embedded verbatim rather than adapted.
+
+`round.ts` is a fan-out **around** the per-player entry points, never a
+replacement for them. `open`, `onTick`, `requestAscent`, `settleAtRoundEnd`,
+`clearSettled` and `setLossLocked` keep their signatures and their tests, which
+is where every M1.3-M1.5 acceptance id stays pinned.
+
+One primitive is the reason RS-2 and RS-3 hold: it reads each player's state,
+calls the per-player function, writes the result back under that player's key,
+and does nothing else. No accumulator crosses players, no earlier result is an
+input to a later one, and the map being built is never read back. Order
+therefore cannot matter, and the permutation tests check that the property still
+holds rather than establishing it by sampling. The iteration runs in sorted key
+order anyway, because the *event log* is a sequence and RS-4 needs it
+insertion-order-independent too.
+
+Round-level rules that follow, and are enforced rather than documented:
+
+- **Seating is explicit.** `roundOpen` refuses a player the round does not hold
+  with `UNKNOWN_PLAYER` (RS-5). A round never creates a player from an arriving
+  request, because a wallet that appears because a request named it is a balance
+  from nowhere.
+- **`setRoundPhase` enforces RL-1 at round level; `resetRoundPhase` is the one
+  bypass.** Entering `settling` settles every open position in the round, so an
+  illegal or repeated transition is a population-wide double settlement. The
+  final tick comes from the round's own retained series, so a round settles only
+  against a tick it actually applied.
+- **`directionalExposure` is computed, never maintained** (RS-7). A running
+  total is a second source of truth that drifts silently; RK-1 and M2.6 need the
+  number re-derivable from the archive. Ascending positions count — they can
+  still crush inside the Blow.
+- **`UNKNOWN_PLAYER` is not a `RejectCode`.** That union is EN-8-ranked and
+  answers a per-player question; round addressing has no rank in it. See
+  ADR 0012.
 
 `packages/sim/test/purity.test.ts` applies the same boundary to the calibration
 core and also bans ambient randomness. The harness receives or derives every

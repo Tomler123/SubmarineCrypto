@@ -6,18 +6,29 @@ Project instructions for Claude Code. Read this fully before touching anything.
 
 **Crush Depth** (working title) is a real-money casino crash game where the outcome is driven by the **real BTC price**, not an RNG. Players ride a shared submarine whose depth is a live index derived from BTC/USDT; they open leveraged long (Surface) or short (Dive) positions at any moment mid-round, and cash out through a deliberate 500 ms "ballast ascent" during which they can still be liquidated.
 
+It is a **B2B game provider** product, the same shape Spribe has with Aviator:
+licensed casino operators embed the game, and players play it from their
+**existing casino balance**. We never hold player funds (ADR 0011).
+
+**Crypto is the price feed and nothing else.** BTC prices drive the submarine's
+depth; the money is ordinary casino fiat balance, exactly as on a slot. There is
+no crypto deposit, no crypto withdrawal and no custody anywhere in this system.
+Treat any suggestion otherwise as a material scope change and confirm before
+building. See `docs/BUSINESS-CONTEXT.md`.
+
 Authoritative documents (keep them in the repo root, keep them current):
 
 - `crush-depth-game-logic-v0.1.md` — the full game logic spec: index math, oxygen edge, cash-out rules, risk caps, degenerate cases. **This spec wins any conflict with code.**
 - `crush-depth-acceptance-criteria-v0.1.md` — testable acceptance criteria for casino/certification readiness. New features must add criteria here before merging.
 - `legacy/crush-depth-phase1.html` — the Phase 1 single-file prototype (Canvas 2D). Reference implementation of the client architecture and visual direction. **Kept verbatim for diffing; do not edit.**
 - `ARCHITECTURE.md` — folder layout, the load-bearing Phase 2 seams, and the module-level side-effect order. Read before adding a module with side effects.
+- `docs/BUSINESS-CONTEXT.md` — **who this is for and what is not yet known.** The B2B/Spribe-style model, the crypto-is-price-feed-only boundary, open questions for the client, and the agreed engineering/legal sequencing. Read it before planning a milestone so the commercial context never has to be re-explained; update it whenever the owner learns something new.
 
 ## Current state
 
 Phase 1 complete: single-file HTML prototype with simulated feed, full round loop, positions, cash-out ascent, liquidation, bot feed, responsible-play UI.
 
-Phase 1.5 in progress. **M1.1 (specs), M1.2 (toolchain + monorepo layout), M1.3 (pure engine port) and M1.4 (oxygen, round timings, entry cutoff) are done.** The prototype was split into ES modules as a pure structural change, then moved under `apps/client/` by `git mv` with no content change. The repo is now an npm-workspaces monorepo with Vite, TypeScript strict and Vitest; `npm test`, `npm run typecheck` and `npm run build` all run in CI on push.
+**Phase 1.5 is complete; Phase 2 (server authority) is in progress, and M2.0 is done.** M1.1 (specs), M1.2 (toolchain + monorepo layout), M1.3 (pure engine port) and M1.4 (oxygen, round timings, entry cutoff) are done. The prototype was split into ES modules as a pure structural change, then moved under `apps/client/` by `git mv` with no content change. The repo is now an npm-workspaces monorepo with Vite, TypeScript strict and Vitest; `npm test`, `npm run typecheck` and `npm run build` all run in CI on push.
 
 M1.3 moved position math and settlement into `packages/engine` as pure TypeScript: no DOM, no timers, no clock reads, no RNG. Every entry point takes a state and returns a new one plus an `EngineEvent[]`, so the five direct `FX`/`Au`/`feedMsg`/`toast`/`checkLossLimit` calls are gone. Money is `Cents` end to end with round-half-away-from-zero applied exactly once at settlement, replacing `Math.round`. `apps/client/src/core/engine.js` is now a thin adapter over the package. 87 tests, 100% coverage on `packages/*`.
 
@@ -132,14 +143,41 @@ acts on, and adding them later touches `pixi-scene.ts` only. **PF-1's 60 fps on
 a mid-range phone is not demonstrated** — it needs a real device and a real
 WebGL context, so that exit criterion stands open. See SC-1…SC-8 and ADR 0009.
 
-637 tests pass with 4 skipped across 50 files. Package coverage gates remain
+M2.0 is complete — the first Phase 2 milestone, and the multi-player engine
+shape. `@crush/engine` gains a `RoundState`: a round id, the phase, the applied
+tick series, and a `ReadonlyMap<PlayerRef, EngineState>` holding the **existing**
+per-player state verbatim. It is a fan-out *around* the per-player entry points,
+not a rewrite of them — `open`, `onTick`, `requestAscent`, `settleAtRoundEnd`,
+`clearSettled` and `setLossLocked` keep their signatures and every existing test
+passes unmodified, which is where every M1.3–M1.5 acceptance id stays pinned.
+
+Three properties are the milestone, each a test rather than a claim. **Fan-out
+determinism** (RS-2): a 500-player round is deeply equal, event log included,
+under shuffled insertion orders. **Player isolation** (RS-3): A run alone and A
+run among 500 others produce identical events, position, wallet and settlement.
+**Canonical event ordering** (RS-4): round events are the per-player events
+concatenated ascending by player reference in **code-unit** order — never
+`localeCompare`, which is ICU-version-dependent and would let two servers order
+the same round differently. All three follow from one property of the fan-out
+primitive: it reads a player's state, calls the per-player function, writes the
+result back, and shares nothing between players.
+
+Also landed: explicit seating with `UNKNOWN_PLAYER` for an unaddressed player
+(RS-5, kept out of `RejectCode` because that union is EN-8-ranked), round-level
+RL-1 enforcement in `setRoundPhase` with `resetRoundPhase` as the one bypass
+(RS-6), and the computed per-round directional aggregate M2.6 will cap against
+(RS-7). See RS-1…RS-8 and ADR 0012.
+
+680 tests pass with 4 skipped across 51 files. Package coverage gates remain
 green; the Close Call engine module is at 100 % lines/statements, branches and
 functions, while `@crush/sim` remains at 96.04 % lines/statements, 84.55 %
 branches and 100 % functions without excluding its populated barrel. Client
 `.ts` modules are now measured too — a reporting gap that had hidden
 `core/close-calls.ts` since Close Calls — putting `scene-model.ts` at 100 %
 lines and `pixi-scene.ts` at 82.89 % lines / 100 % functions. `apps/client`
-remains ungated.
+remains ungated. M2.0's `round.ts` is at 100 % lines, branches and functions;
+`round-types.ts` reports 0 % exactly as `types.ts` does, both being type-only
+files with no runtime code.
 
 ### Where things live
 
@@ -213,6 +251,22 @@ Run it with `npm install` then `npm run dev` (Vite, http://localhost:5173). ES m
   `core/close-calls.ts` may format and suppress duplicate ids only. Fake actors
   must consume isolated `@crush/engine` events; never restore their former local
   multiplier, crush, payout or P&L formulas.
+- **`RoundState` fans out; it never reimplements.** `round.ts` wraps the
+  per-player entry points and shares nothing between players — no accumulator
+  crosses them, and the map being rebuilt is never read back. That is what makes
+  RS-2's order-independence and RS-3's isolation structural rather than lucky.
+  New round-level behaviour goes in the fan-out or in a per-player function,
+  never in a special case that reads two players at once. The canonical event
+  order is **code-unit** ascending by `PlayerRef` (so `p10` precedes `p9`);
+  never "fix" it to numeric or `localeCompare` ordering — RS-4 exists so the
+  archive and the ledger have one sequence, and ICU versions differ between
+  deployments. Seating is explicit: a round never creates a player from an
+  arriving request (RS-5).
+- **`setRoundPhase` enforces RL-1 at round level; `resetRoundPhase` is the one
+  bypass.** Entering `settling` settles every open position in the round, so a
+  repeated transition is a population-wide double settlement. The final tick
+  comes from the round's own retained series — a round settles only against a
+  tick it actually applied.
 - **`setPhase` enforces RL-1; `resetPhase` is the only bypass.** Phase entry runs
   side effects that are not idempotent (entering `settling` settles every open
   position), so a new phase-entry effect goes inside `enterPhase` and a new caller
@@ -270,7 +324,7 @@ Close Call at minimum surviving d·(I_t−I_crush)/I_crush ≤ 0.5 %, inclusive
 ```
 /apps/client          React + PixiJS v8 + Zustand + Framer Motion (mobile-first, portrait)
 /packages/feed        IndexSource contract, SimulatedIndexSource, ReplayIndexSource, InterpBuffer
-/packages/engine      round state, position math, oxygen, crush, settlement, Close Call facts (pure, no I/O)
+/packages/engine      round state + multi-player fan-out, position math, oxygen, crush, settlement, Close Call facts (pure, no I/O)
 /packages/gateway     request/ack seam, optimistic mirror
 /packages/ledger      integer-cent wallet types + double-entry helpers (client mock in Phase 1.5)
 /packages/sim         Monte-Carlo RTP calibration harness + behavior models
@@ -281,7 +335,7 @@ Close Call at minimum surviving d·(I_t−I_crush)/I_crush ≤ 0.5 %, inclusive
 - Renderer stays behind one interface; the Canvas 2D prototype code is the visual reference, PixiJS v8 is the target.
 - Stack is fixed: React + PixiJS v8 + Zustand. Not Unity WebGL, not Phaser. Argue alternatives with the owner before deviating.
 
-## Phase 1.5 task list (current)
+## Phase 1.5 task list (complete)
 
 1. ~~Repo scaffold~~ — **done**. The ES-module split (see "Where things live") plus M1.2: npm workspaces, Vite, TypeScript strict, Vitest with an 80% coverage gate over `packages/*`, and CI on push. `apps/client` is still JavaScript (`allowJs`, `checkJs` off); **new code should be `.ts`.** M1.8 added the render seam as `.ts` beside the untouched Canvas renderer rather than replacing `render/` wholesale, so the prototype JavaScript there is retained deliberately as the visual reference.
 2. ~~Port engine math into `/packages/engine` with unit tests against the acceptance criteria~~ — **done (M1.3)**. Tests are named by AC id; `packages/engine/test/purity.test.ts` is the durable guard on the no-DOM/no-timer/no-clock/no-RNG rule.
@@ -300,6 +354,50 @@ Close Call at minimum surviving d·(I_t−I_crush)/I_crush ≤ 0.5 %, inclusive
     `?renderer=pixi` opt-in with Canvas retained unmodified as the default and
     the visual reference. Gameplay-critical layers only; PF-1's on-device
     60 fps measurement remains open.
+
+## Phase 2 task list (current)
+
+Server authority. Sequencing rule: **each milestone is verifiable before the one
+after it exists.** M2.0, M2.1 and M2.3 are pure packages with no sockets and no
+database; M2.2 introduces I/O; only M2.4 binds money to a network. Full detail in
+`docs/DESCENT-PLAN.md`.
+
+| id | Milestone | Shape | Depends on | Status |
+|---|---|---|---|---|
+| M2.0 | Multi-player engine shape | pure package | — | **done** |
+| M2.1 | Index aggregation + Signal Lost decision | pure package | — | next |
+| M2.2 | Live feed transport + tick archive | service | M2.1 | |
+| M2.3 | Internal double-entry ledger + reconciliation | pure package + store | wallet contract | |
+| M2.4 | Authoritative round server + wallet seam | service | M2.0–M2.3, wallet contract | |
+| M2.5 | Operator session integration + eligibility enforcement | service | M2.4 | |
+| M2.6 | House risk engine + kill switch | service | M2.4, M2.5 | |
+
+1. ~~Multi-player engine shape: `RoundState` fan-out around the per-player entry
+   points, with order-independence, player isolation and canonical event
+   ordering property-tested across 500+ simultaneous positions.~~ **done (M2.0)**
+   — RS-1…RS-8, ADR 0012. Every existing per-player test passes unmodified.
+2. **M2.1 — index aggregation and the Signal Lost decision.** FI-4's 0.5 %
+   median-deviation exclusion and FI-5's 3-live-feed floor are a component
+   *upstream* of `IndexTransform`, which takes a single price and must keep
+   doing so. Pure package, no sockets. Venue set and liveness are fixed by
+   ADR 0010.
+3. M2.2 — live feed transport and the tick archive. Market-data rights (FI-20)
+   are a release blocker for this milestone, not a procurement task.
+4. M2.3 — internal double-entry ledger and reconciliation. **Blocked on the
+   wallet contract decision** (WL-1…WL-8).
+5. M2.4 — authoritative round server and the wallet seam. Consumes M2.0's
+   fan-out; single-writer authority behind stateless gateways per ADR 0010.
+6. M2.5 — operator session integration and eligibility enforcement.
+7. M2.6 — house risk engine and kill switch. Caps the RS-7 aggregate.
+
+**Required decision before M2.3 and M2.4 are finalised: the internal wallet
+contract.** Idempotent debit / credit / refund / rollback with per-operator
+adapters. Its shape determines the ledger's account structure, the entry path's
+failure modes and the round server's latency budget.
+
+**Carried forward from Phase 1.5:** PF-1's on-device 60 fps measurement and the
+by-eye Canvas/Pixi parity review. Both gate flipping the renderer default;
+neither gates Phase 2.
 
 ## Working conventions
 

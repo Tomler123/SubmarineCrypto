@@ -160,6 +160,76 @@ Conventions: "tick" = one 125 ms server sample. "MUST" = release blocker. All mo
 - **RL-4** At round end, every still-open position auto-surfaces at the final tick at its current multiplier, with no penalty and no fee.
 - **RL-5** A round id is globally unique and appears on every tick, bet, settlement, and log line of that round.
 
+## RS — Round State & Multi-Player Fan-Out (M2.0)
+
+> The per-player engine entry points (`open`, `onTick`, `requestAscent`,
+> `settleAtRoundEnd`, `clearSettled`, `setLossLocked`) are unchanged by this
+> group and keep every criterion already pinned to them. RS constrains only the
+> **fan-out around** them: how one authoritative tick reaches N players, in what
+> order the resulting facts are emitted, and what a round-level caller — the
+> M2.4 round authority — may rely on.
+
+- **RS-1** A `RoundState` holds a round id, the current phase, the authoritative
+  tick series applied so far, and a map of **opaque operator-scoped player
+  reference** to that player's existing `EngineState`. It holds no clock, no
+  timer, no socket and no RNG; the purity guard that covers `@crush/engine`
+  covers it unchanged. A player's state inside a round is the *same*
+  `EngineState` the single-player entry points produce, not a variant of it —
+  so a per-player fact carries into a round with no translation layer.
+- **RS-2 (fan-out determinism)** Applying one authoritative tick to a round
+  produces per-player settlements, events and wallets that are **independent of
+  iteration order**. For any two permutations of the same player set, the
+  resulting `RoundState` is deeply equal and the emitted round event sequence is
+  identical. A round authority that pays differently depending on `Map`
+  insertion order is not auditable. Test: apply an identical tick series to the
+  same population under shuffled insertion orders and assert deep equality of
+  the final state and of the full event log.
+- **RS-3 (player isolation)** One player's outcome cannot influence another's.
+  Crush, auto-order triggers, settlement, wallet movement and Close Call facts
+  for player A are a function of **A's own state and the shared tick only**.
+  Test by interleaving: run A alone through a tick series and action script, then
+  run the identical A among at least 500 other players opening, ascending,
+  crushing and settling on the same ticks, and assert A's events, position,
+  settlement and wallet are identical in both runs. Neither a crush nor a
+  max-win nor a rejection anywhere in the population may perturb A.
+- **RS-4 (canonical event ordering)** Round-level events are a deterministic
+  concatenation of per-player events under one declared stable order: **ascending
+  by player reference (code-unit order), then each player's existing per-player
+  event order**, which RS-3 leaves unchanged. The archive (VR-1) and the ledger
+  (LG-3) therefore have exactly one canonical sequence to write for a tick.
+  Every round event carries the player reference it belongs to and the round id
+  (RL-5) so the sequence is self-describing. Test: the round event log for a tick
+  equals the per-player logs concatenated in that declared order, under any
+  insertion order.
+- **RS-5 (round-scoped entry)** An entry request is addressed to one player and
+  is evaluated by the existing per-player path with its EN-8 precedence
+  unchanged. A request naming a player the round does not hold is rejected with
+  `UNKNOWN_PLAYER` and changes nothing — it is not an implicit player creation,
+  because a round authority creating wallets from arriving requests is how a
+  balance appears from nowhere. EN-5's one-open-position rule stays per player,
+  never per round.
+- **RS-6 (phase authority)** RL-1's graph is enforced by the round state's own
+  phase setter, not by its callers, exactly as `setPhase` enforces it in the
+  client: only the single legal successor is accepted, self-transitions
+  included, and entering `settling` settles **every** still-open position in the
+  round exactly once via RL-4's existing per-player path. A repeated or illegal
+  transition is a double settlement across the whole population, so it MUST be
+  refused rather than tolerated. One sanctioned seed bypass exists for boot and
+  tests and is a distinct, named entry point.
+- **RS-7 (per-round directional aggregate)** The round exposes, at every tick,
+  the **open notional per direction** — the sum of `stake × leverage` over open
+  and ascending positions, separately for Surface and Dive — plus the signed net.
+  It is derived from round state alone, is integer minor units end to end (LG-2),
+  and is the aggregate RK-1's directional cap and M2.6's kill switch act on.
+  Exposed at M2.0 as a computed fact only: RS does **not** enforce a cap, because
+  the cap is a risk-engine policy and its rejection code belongs with RK-1.
+- **RS-8 (population invariance of money)** For an identical tick series and
+  action script for player A, A's payout and P&L are **byte-identical**
+  regardless of how many other players are in the round — one, or ten thousand.
+  Population size is not an input to any money path. This is RS-3 stated as the
+  money property a lab will test directly, and it is what makes a single-player
+  golden vector still valid evidence under real load.
+
 ## EN — Entry (Buy-In)
 
 - **EN-1** Entries are accepted from `running` start until T−5 s; a request received after cutoff is rejected with `ENTRY_CLOSED` and full non-debit (stake never leaves the wallet). "Received" means received by the authority, not sent by the client: the window is evaluated after the network leg, so a tap that races the cutoff is late wherever it is judged. A bet armed during intermission is not an entry — it executes at launch, inside the window.
