@@ -18,7 +18,7 @@ npm run dev        # Vite dev server → http://localhost:5173
 ```
 
 | Script | What it does |
-|---|---|
+|---|---| 
 | `npm run dev` | Vite dev server for the client |
 | `npm test` | Vitest across `packages/*` |
 | `npm run coverage` | Tests with the 80% coverage gate |
